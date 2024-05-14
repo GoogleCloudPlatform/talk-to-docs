@@ -41,7 +41,7 @@ from gen_ai.common.embeddings_provider import EmbeddingsProvider
 from gen_ai.common.exponential_retry import LLMExponentialRetryWrapper
 from gen_ai.common.storage import UhgStorage
 from gen_ai.common.vector_provider import VectorStrategy, VectorStrategyProvider
-from gen_ai.constants import LLM_YAML_FILE, MEMORY_STORE_IP
+from gen_ai.constants import LLM_YAML_FILE, MEMORY_STORE_HOST
 
 
 def provide_chain(template_name: str, input_variables: list[str], output_key: str, llm: LLMChain = None) -> Chain:
@@ -113,13 +113,13 @@ def provide_redis() -> redis.Redis:
     """
     Provides a Redis database connection using predefined settings.
 
-    This function initializes and returns a connection to a Redis database specified by the MEMORY_STORE_IP constant.
+    This function initializes and returns a connection to a Redis database specified by the MEMORY_STORE_HOST constant.
     It sets up the connection with the default port and database index.
 
     Returns:
         redis.Redis: A Redis client instance connected to the specified Redis server.
     """
-    redis_db = redis.Redis(host=MEMORY_STORE_IP, port=6379, db=0, decode_responses=True)
+    redis_db = redis.Redis(host=MEMORY_STORE_HOST, port=6379, db=0, decode_responses=True)
     return redis_db
 
 
