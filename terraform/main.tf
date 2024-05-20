@@ -100,6 +100,19 @@ provider "google" {
   zone        = var.zone
 }
 
+resource "google_compute_network" "platform_gen_ai_network" {
+  name                    = "platform-gen-ai-network"
+  auto_create_subnetworks = false
+}
+
+resource "google_compute_subnetwork" "platform_gen_ai_subnet" {
+  name                     = "platform-gen-ai-subnet"
+  ip_cidr_range            = "10.100.0.0/24"
+  network                  = google_compute_network.platform_gen_ai_network.id
+  private_ip_google_access = true
+  stack_type               = "IPV4_ONLY"
+}
+
 resource "google_compute_instance" "default" {
   name         = local.config.terraform_instance_name
   machine_type = "e2-medium"
@@ -111,22 +124,43 @@ resource "google_compute_instance" "default" {
   }
 
   network_interface {
-    network = "default"
+    network = google_compute_network.platform_gen_ai_network.id
     access_config {
     }
   }
 }
 
 resource "google_redis_instance" "default" {
-  name           = local.config.terraform_redis_name
-  tier           = "BASIC" # STANDARD_HA for highly available
-  memory_size_gb = 1
+  name               = local.config.terraform_redis_name
+  tier               = "BASIC" # STANDARD_HA for highly available
+  memory_size_gb     = 1
+  authorized_network = google_compute_network.platform_gen_ai_network.id
 
   redis_configs = {
     maxmemory-policy = "allkeys-lru"
   }
 }
 
+resource "google_dns_managed_zone" "redis_private_zone" {
+  name        = "redis-private-zone"
+  dns_name    = "t2xservice.internal."
+  description = "Private DNS zone to allow hostname connections to the T2X Redis instance."
+  visibility  = "private"
+  private_visibility_config {
+    networks {
+      network_url = google_compute_network.platform_gen_ai_network.id
+    }
+  }
+}
+
+resource "google_dns_record_set" "redis" {
+  name         = "redis.t2xservice.internal."
+  type         = "A"
+  ttl          = 300
+  managed_zone = google_dns_managed_zone.redis_private_zone.name
+  rrdatas      = [google_redis_instance.default.host]
+  depends_on   = [google_redis_instance.default]
+}
 
 resource "google_bigquery_dataset" "dataset" {
   dataset_id    = local.config.dataset_name

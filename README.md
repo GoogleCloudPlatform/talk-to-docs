@@ -94,6 +94,10 @@ The variable sets the default project in the `google` provider block. The provid
 The `credentials` provider argument supplies credentials to deploy resources. It reads the path to a local service account key file from the `llm.yaml` file.
 
 
+### Redis private DNS hostname
+To avoid hardcoding the Memorystore Redis private IP address after it's created, the `MEMORY_STORE_HOST` constant in the `contants.py` file defines a private DNS zone hostname for the instance. Terraform will create a private DNS zone `A` record in [Cloud DNS](https://cloud.google.com/dns/docs/zones#create-private-zone) that points to the redis instance IP address. The instance allows connections from the authorized network `platform-gen-ai-network` also created by terraform.
+
+
 ### Updating BigQuery table
 
 All the runs are logged into a dataset located in the project discovered from [Application Default Credentials](https://cloud.google.com/docs/authentication/application-default-credentials). Change the dataset name by updating the `dataset_name` variable in the `llm.yaml` file.
