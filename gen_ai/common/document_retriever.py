@@ -18,26 +18,28 @@ from langchain_community.vectorstores.chroma import Chroma
 from langchain_core.documents.base import Document
 
 import gen_ai.common.common as common
-from gen_ai.common.argo_logger import trace_on
+from gen_ai.common.measure_utils import trace_on
 from gen_ai.common.chroma_utils import convert_to_chroma_format
 from gen_ai.common.ioc_container import Container
 
 
-def remove_member_id(metadata: dict[str, Any]) -> dict[str, Any]:
-    """Removes the "member_id" key from a metadata dictionary.
+def remove_member_and_session_id(metadata: dict[str, Any]) -> dict[str, Any]:
+    """Removes the "member_id" key and "session_id" from a metadata dictionary.
 
-    This function creates a copy of the input dictionary, deletes the "member_id" key from
+    This function creates a copy of the input dictionary, deletes the "member_id" and "session_id" key from
     the copy, and returns the modified copy.
 
     Args:
         metadata (dict): The input metadata dictionary.
 
     Returns:
-        dict: A new dictionary with the "member_id" key removed.
+        dict: A new dictionary with the "member_id" and "session_id" key removed.
     """
     new_metadata = copy.deepcopy(metadata)
     if "member_id" in new_metadata:
         del new_metadata["member_id"]
+    if "session_id" in new_metadata:
+        del new_metadata["session_id"]
     return new_metadata
 
 
@@ -108,12 +110,12 @@ class SemanticDocumentRetriever(DocumentRetriever):
     ) -> list[Document]:
         if metadata is None:
             metadata = {}
-        metadata = remove_member_id(metadata)
+        metadata = remove_member_and_session_id(metadata)
         if metadata is not None and len(metadata) > 1:
             metadata = convert_to_chroma_format(metadata)
 
         ss_docs = store.similarity_search_with_score(query=questions_for_search, k=50, filter=metadata)
-        ss_docs = [x[0] for x in ss_docs[0:2]]
+        ss_docs = [x[0] for x in ss_docs[0:3]]
 
         if Container.config.get("use_mmr", False):
             mmr_docs = store.max_marginal_relevance_search(

@@ -11,108 +11,39 @@ container for Redis connections and custom data types like `PersonalizedData` an
 import json
 from dataclasses import asdict
 from datetime import datetime
-from typing import Any, List
-
-from langchain.schema import Document
+from typing import List
 
 from gen_ai.common.ioc_container import Container
 from gen_ai.deploy.model import PersonalizedData, QueryState
 
+DEFAULT_SESSION_ID = "123456789"
 
-def generate_query_state_key(personalized_data: PersonalizedData, unique_identifier: str | None = None) -> str:
+
+def generate_query_state_key(personalized_data: dict[str, str], unique_identifier: str | None = None) -> str:
     """
     Generates a unique key for storing a query state in Redis.
 
-    The key is constructed using the policy number and set number from the personalized data, along with a
+    The key is constructed using the member id number from the personalized data, along with a
     unique identifier.
 
     Args:
-        personalized_data (PersonalizedData): The personalized data containing the policy and set number.
+        personalized_data (dict[str, str]): The personalized data containing the policy and set number.
         unique_identifier (str): A unique identifier for the query state, typically a timestamp.
 
     Returns:
         str: A string key uniquely identifying a query state for storage in Redis.
     """
-    the_key = f"query_state:{personalized_data['member_id']}:{personalized_data['set_number']}"
+    the_key = f"query_state:{personalized_data['member_id']}"
+    if "session_id" in personalized_data and personalized_data["session_id"]:
+        the_key = f"{the_key}:{personalized_data['session_id']}"
+    else:
+        the_key = f"{the_key}:{DEFAULT_SESSION_ID}"
     if unique_identifier:
         the_key = f"{the_key}:{unique_identifier}"
     return the_key
 
 
-def convert_langchain_to_json(doc: Document) -> dict[str, Any]:
-    """
-    Converts a `Document` object to a JSON-serializable dictionary.
-
-    This function is specifically designed for converting documents from the custom `Document`
-    format used within the langchain schema to a JSON format for storage or further processing.
-
-    Args:
-        doc (Document): The `Document` object to convert.
-
-    Returns:
-        dict: A dictionary representation of the `Document`, suitable for JSON serialization.
-    """
-    doc_json = {}
-    doc_json["page_content"] = doc.page_content
-    doc_json["metadata"] = doc.metadata
-    return doc_json
-
-
-def convert_dict_to_summaries(doc: dict) -> dict[str, Any]:
-    """
-    Converts a `Document` object to a JSON-serializable dictionary.
-
-    This function is specifically designed for converting documents from the custom `Document`
-    format used within the langchain schema to a JSON format for storage or further processing.
-
-    Args:
-        doc (Document): The `Document` object to convert.
-
-    Returns:
-        dict: A dictionary representation of the `Document`, suitable for JSON serialization.
-    """
-    doc_json = {}
-    doc_json["summary"] = doc["metadata"]["summary"]
-    doc_json["summary_reasoning"] = doc["metadata"]["summary_reasoning"]
-    return doc_json
-
-
-def convert_dict_to_relevancies(doc: dict) -> dict[str, Any]:
-    """
-    Converts a `Document` object to a JSON-serializable dictionary.
-
-    This function is specifically designed for converting documents from the custom `Document`
-    format used within the langchain schema to a JSON format for storage or further processing.
-
-    Args:
-        doc (Document): The `Document` object to convert.
-
-    Returns:
-        dict: A dictionary representation of the `Document`, suitable for JSON serialization.
-    """
-    doc_json = {}
-    doc_json["relevancy_score"] = doc["metadata"]["relevancy_score"]
-    doc_json["relevancy_reasoning"] = doc["metadata"]["relevancy_reasoning"]
-    return doc_json
-
-
-def convert_json_to_langchain(doc: dict[str, Any]) -> Document:
-    """
-    Converts a JSON-serializable dictionary to a `Document` object.
-
-    This function allows for the reverse operation of `convert_langchain_to_json`, enabling
-    the reconstruction of a `Document` object from its JSON dictionary representation.
-
-    Args:
-        doc (dict): The dictionary representation of a `Document`.
-
-    Returns:
-        Document: The reconstructed `Document` object.
-    """
-    return Document(page_content=doc["page_content"], metadata=doc["metadata"])
-
-
-def save_query_state_to_redis(query_state: QueryState, personalized_data: PersonalizedData) -> None:
+def save_query_state_to_redis(query_state: QueryState, personalized_data: dict[str, str]) -> None:
     """
     Saves a query state to Redis using a generated key.
 
@@ -122,7 +53,7 @@ def save_query_state_to_redis(query_state: QueryState, personalized_data: Person
 
     Args:
         query_state (QueryState): The query state to save.
-        personalized_data (PersonalizedData): The personalized data used to generate part of the key.
+        personalized_data (dict[str, str]): The personalized data used to generate part of the key.
 
     Side Effects:
         Saves a serialized version of the query state to Redis under a generated key.
@@ -160,12 +91,16 @@ def get_query_states_from_memorystore(personalized_info: PersonalizedData) -> Li
             query_state_dict = json.loads(query_state_json)
 
             query_state_obj = QueryState(**query_state_dict)
-            matching_query_states.append(query_state_obj)
+            timestamp = key.split(":")[-1]
+            matching_query_states.append((timestamp, query_state_obj))
 
-    return matching_query_states
+    matching_query_states.sort(key=lambda x: x[0], reverse=True)
+    sorted_query_states = [qs[1] for qs in matching_query_states]
+
+    return sorted_query_states
 
 
-def serialize_previous_conversation(query_state: QueryState) -> str:
+def serialize_previous_conversation(query_states: list[QueryState]) -> str:
     """
     Serializes the content of a previous conversation from a query state into a formatted string.
 
@@ -174,7 +109,7 @@ def serialize_previous_conversation(query_state: QueryState) -> str:
     be used for logging, debugging, or displaying past interaction context in a user interface.
 
     Args:
-        query_state (QueryState): The query state object containing details of the previous conversation
+        query_states (list[QueryState]): The list of query state objects containing details of the previous conversation
                                   including the question asked, the answer given, and any additional
                                   information that was required.
 
@@ -184,13 +119,18 @@ def serialize_previous_conversation(query_state: QueryState) -> str:
     Example:
         >>> query_state = QueryState(question="What is the capital of France?", answer="Paris",
                                      additional_information_to_retrieve="Population details")
-        >>> serialized_conversation = serialize_previous_conversation(query_state)
+        >>> serialized_conversation = serialize_previous_conversation([query_state])
         >>> print(serialized_conversation)
-        Previous question was: What is the capital of France?
-        Previous answer was: Paris
-        Previous additional information to retrieve: Population details
+        Previous question #1 was: What is the capital of France?
+        Previous answer #1 was: Paris
+        Previous additional information to retrieve #1: Population details
     """
-    return f"""
-    Previous question was: {query_state.question}
-    Previous answer was: {query_state.answer} 
-    Previous additional information to retrieve: {query_state.additional_information_to_retrieve}"""
+    serialized_previous_conversation = []
+
+    for i, query_state in enumerate(query_states):
+        response = f"""
+        Previous question #{i} was: {query_state.question}
+        Previous answer #{i} was: {query_state.answer} 
+        Previous additional information to retrieve #{i} was: {query_state.additional_information_to_retrieve}"""
+        serialized_previous_conversation.append(response)
+    return "\n".join(serialized_previous_conversation)

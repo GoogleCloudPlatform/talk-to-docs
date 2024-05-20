@@ -41,7 +41,7 @@ import argparse
 
 from google.cloud import bigquery
 
-from gen_ai.common.bq_utils import create_bq_client, create_dataset, create_table, get_dataset_id
+from gen_ai.common.bq_utils import create_dataset, create_table, get_dataset_id
 from gen_ai.common.ioc_container import Container
 
 schema_gt = [
@@ -118,8 +118,7 @@ if __name__ == "__main__":
     parser.add_argument("--recreate_table", action="store_true", help="Flag to recreate the tables")
     args = parser.parse_args()
 
-    project_id = Container.config["bq_project_id"]
-    client = create_bq_client(project_id=project_id)
+    client = Container.logging_bq_client()
     dataset_id = get_dataset_id()
 
     create_dataset(client, dataset_id, recreate_dataset=args.recreate_dataset)

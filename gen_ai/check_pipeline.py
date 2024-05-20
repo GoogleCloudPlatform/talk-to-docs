@@ -108,7 +108,6 @@ def run_pipeline(mode: Literal["batch", "step"] = "step", csv_path: str = None, 
         Measures and displays execution time in 'step' mode.
     """
     session_id = str(uuid.uuid4())
-    Container.session_id = session_id
     Container.logger().info(msg=f"Session id is: {session_id}")
     Container.comments = comments
     if mode == "batch":
@@ -121,6 +120,7 @@ def run_pipeline(mode: Literal["batch", "step"] = "step", csv_path: str = None, 
 
             if Container.config.get("personalization"):
                 personalized_data = get_default_personalized_info(row)
+                personalized_data["session_id"] = session_id
             answer = run_single_prediction(question, personalized_data)
             Container.logger().info(msg=f"Answer: {answer}")
     elif mode == "step":
@@ -128,7 +128,9 @@ def run_pipeline(mode: Literal["batch", "step"] = "step", csv_path: str = None, 
         for idx, input_query in enumerate(["Do I have a copay for a routine colonoscopy?"]):
             Container.logger().info(msg=f"Asking question {idx} in document ")
             Container.logger().info(msg=f"Question: {input_query}")
-            answer = run_single_prediction(input_query, {"set_number": "001acis"})
+            answer = run_single_prediction(
+                input_query, {"set_number": "001acis", "member_id": "q123", "session_id": "123"}
+            )
             Container.logger().info(msg=f"Answer: {answer}")
         end = default_timer()
         print(f"Total flow took {end - start} seconds")

@@ -22,44 +22,22 @@ Exceptions:
 import datetime
 import getpass
 import json
-import uuid
-import git
 import os
 import re
+import uuid
+from typing import Any
 
+import git
 import google.auth
 import pandas as pd
 from google.api_core.exceptions import GoogleAPIError, NotFound
 from google.cloud import bigquery
 from google.cloud.bigquery.schema import SchemaField
 
+from gen_ai.common.document_utils import convert_dict_to_relevancies, convert_dict_to_summaries
 from gen_ai.common.ioc_container import Container
-from gen_ai.common.memorystore_utils import convert_dict_to_relevancies, convert_dict_to_summaries
-from gen_ai.deploy.model import QueryState
 from gen_ai.constants import MAX_OUTPUT_TOKENS
-
-
-def create_bq_client(project_id: str | None = None) -> bigquery.Client | None:
-    """Creates a BigQuery client.
-    If project_id is not specified, the default project ID will be used.
-    If the default project ID cannot be determined, an error will be raised.
-    Args:
-        project_id (str, optional): The project ID to use. Defaults to None.
-    Returns:
-        A BigQuery client.
-    """
-    if project_id is None:
-        try:
-            _, project_id = google.auth.default()
-        except GoogleAPIError as e:
-            print(f"Failed to authenticate: {e}")
-            return None
-    try:
-        client = bigquery.Client(project=project_id)
-    except GoogleAPIError as e:
-        print(f"Failed to create BigQuery client: {e}")
-        return None
-    return client
+from gen_ai.deploy.model import Conversation, QueryState
 
 
 def create_dataset(
@@ -116,36 +94,71 @@ def create_table(
         print(f"Table {table_id} created.")
 
 
-def load_data_to_bq(client: bigquery.Client, table_id: str, schema: list[SchemaField], df: pd.DataFrame) -> None:
+def load_data_to_bq(conversation: Conversation, log_snapshots: list[dict[str, Any]]):
+    """Loads prediction data, question and exeriments information to BigQuery.
+
+    This function prepares and loads relevant data from a conversation into BigQuery.
+    The process involves extracting the latest question from the conversation,
+    logging it for reference, and transforming the data into a format
+    suitable for BigQuery using the `BigQueryConverter`.
+
+    Args:
+        conversation: A Conversation object containing the full conversation history.
+        log_snapshots: A list of log snapshot objects containing relevant metadata.
+    """
+    query_state = conversation.exchanges[-1]
+    question = query_state.question
+    log_question(question)
+    df = BigQueryConverter.convert_query_state_to_prediction(
+        conversation.exchanges[-1], log_snapshots, conversation.session_id
+    )
+    load_status = load_prediction_data_to_bq(df)
+    if load_status:
+        Container.logger().info(msg="Successfully wrote into BQ Prediction table")
+    else:
+        Container.logger().info(msg="Error in writing into BQ Prediction table")
+
+
+def load_prediction_data_to_bq(df: pd.DataFrame) -> None:
     """Loads data from a pandas DataFrame to a BigQuery table.
     The table will be created if it does not already exist.
     If the table already exists, it will be overwritten.
     Args:
-        client (bigquery.Client): The BigQuery client.
-        table_id (str): The ID of the table to load data to.
-        schema (List[bigquery.SchemaField]): The schema of the table.
         df (pandas.DataFrame): The DataFrame to load data from.
     """
+    client = Container.logging_bq_client()
+    dataset_id = get_dataset_id()
+
+    table_id = f"{dataset_id}.prediction"
+    table = client.get_table(table_id)
+    schema = table.schema
+
     job_config = bigquery.LoadJobConfig(schema=schema)
     job = None
     try:
         job = client.load_table_from_dataframe(df, table_id, job_config=job_config)
         job.result()
         print(f"Loaded {job.output_rows} rows into {table_id}.")
+
     except GoogleAPIError as e:
-        print(f"An error occurred: {e}")
+        Container.logger().error(msg="Crashed on writing into BQ Prediction table")
+        Container.logger().error(msg=str(e))
         if job and job.errors:
             for error in job.errors:
                 print(f"Error: {error['message']}")
                 if "location" in error:
                     print(f"Field that caused the error: {error['location']}")
+        return False
+    return True
 
 
 def log_system_status(session_id: str) -> str:
     """
     Logs the current system status and pipeline parameters to a BigQuery table for tracking and reproducibility.
 
-    This function gathers essential information about the current execution context, including Git commit hash, GCS bucket location, model configuration, and optional user comments.  It then generates a unique system state ID and inserts this data into an 'experiment' BigQuery table.
+    This function gathers essential information about the current execution context, including Git commit hash,
+    GCS bucket location, model configuration, and optional user comments.
+    It then generates a unique system state ID and inserts this data into an 'experiment' BigQuery table.
 
     Args:
         session_id (str): A unique identifier for the current user session.
@@ -158,29 +171,33 @@ def log_system_status(session_id: str) -> str:
         git_hash = str(repo.head.object.hexsha)
     except git.exc.InvalidGitRepositoryError:
         print("Error: git repo not found.")
-        git_hash = str(uuid.uuid5(uuid.NAMESPACE_DNS,os.getcwd()))
+        git_hash = str(uuid.uuid5(uuid.NAMESPACE_DNS, os.getcwd()))
 
     gcs_bucket = Container.config["gcs_source_bucket"]
     model_name = Container.config["model_name"]
     temperature = Container.config["temperature"]
     pipeline_parameters = f"model: {model_name}; temperature: {temperature}; max_tokens: {MAX_OUTPUT_TOKENS}"
-    
+
     comments = Container.comments
-    system_state_id = str(uuid.uuid5(uuid.NAMESPACE_DNS,f"{git_hash}-{gcs_bucket}-{pipeline_parameters}-{comments or ''}"))
-    
-    data = {"system_state_id":system_state_id,
-            "session_id":session_id,
-            "github_hash":git_hash,
-            "gcs_bucket_path":gcs_bucket,
-            "pipeline_parameters":pipeline_parameters,
-            "comments":comments,
-            }
+    system_state_id = str(
+        uuid.uuid5(uuid.NAMESPACE_DNS, f"{git_hash}-{gcs_bucket}-{pipeline_parameters}-{comments or ''}")
+    )
+
+    data = {
+        "system_state_id": system_state_id,
+        "session_id": session_id,
+        "github_hash": git_hash,
+        "gcs_bucket_path": gcs_bucket,
+        "pipeline_parameters": pipeline_parameters,
+        "comments": comments,
+    }
     data = {str(x): str(v) for x, v in data.items()}
     insert_status = insert_data_to_table("experiment", data)
     if not insert_status:
         print(f"Error while logging system state id to bq table. Github hash: {git_hash}; GCS bucket: {gcs_bucket}")
     Container.system_state_id = system_state_id
     return system_state_id
+
 
 def log_question(question: str) -> str:
     """
@@ -201,17 +218,19 @@ def log_question(question: str) -> str:
         str: The unique question ID.
     """
     question_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, re.sub(r"\W", "", question.lower())))
-    data = {"question_id":question_id,
-            "question":question,
-            "parent_question_id":"",
-            }
-    
+    data = {
+        "question_id": question_id,
+        "question": question,
+        "parent_question_id": "",
+    }
+
     insert_status = insert_data_to_table("questions", data)
     if not insert_status:
         print(f"Error while logging question {question} to bq table.")
 
     Container.question_id = question_id
     return question_id
+
 
 def insert_data_to_table(table_name: str, data: dict[str, str]) -> bool:
     """
@@ -226,28 +245,30 @@ def insert_data_to_table(table_name: str, data: dict[str, str]) -> bool:
     Returns:
         bool: True if the insertion was successful, False otherwise.
     """
-    client = create_bq_client()
+    client = Container.logging_bq_client()
     dataset_id = get_dataset_id()
-    table = client.get_table(f"{dataset_id}.{table_name}") 
+    table = client.get_table(f"{dataset_id}.{table_name}")
 
     errors = client.insert_rows_json(table, [data])
-    if errors == []:
+    if not errors:
         print("New rows have been added.")
         return True
-    else:
-        print(f"Errors while inserting rows: {errors}")
-        return False
+    print(f"Errors while inserting rows: {errors}")
+    return False
+
 
 def get_dataset_id() -> str:
     """
     Retrieves the BigQuery dataset ID for the current project.
 
-    The dataset ID combines the project ID and a predefined dataset name (assumed to be globally defined as 'DATASET_NAME').
+    The dataset ID combines the project ID and a predefined dataset name
+    (assumed to be globally defined as 'DATASET_NAME').
 
     Priority for determining the project ID:
 
     1. **Variable in llm.yaml:** Looks for the 'bq_project_id' config variable.
-    2. **Google Application Default Credentials:** If the environment variable is not found, uses Google's default credentials mechanism.
+    2. **Google Application Default Credentials:** If the environment variable is not found, uses Google's default
+    credentials mechanism.
 
     Returns:
         str: The fully constructed BigQuery dataset ID in the format 'project_id.DATASET_NAME'.
@@ -260,6 +281,7 @@ def get_dataset_id() -> str:
     if not project_id:
         _, project_id = google.auth.default()
     return f"{project_id}.{dataset_name}"
+
 
 class BigQueryConverter:
     """
@@ -280,7 +302,9 @@ class BigQueryConverter:
     """
 
     @staticmethod
-    def convert_query_state_to_prediction(query_state: QueryState, log_snapshots: list[dict], session_id: str) -> pd.DataFrame:
+    def convert_query_state_to_prediction(
+        query_state: QueryState, log_snapshots: list[dict], session_id: str
+    ) -> pd.DataFrame:
         data = {
             "user_id": [],
             "prediction_id": [],
@@ -333,7 +357,7 @@ class BigQueryConverter:
 
             tokens_used = query_state.tokens_used if query_state.tokens_used is not None else 0
             prediction_id = str(uuid.uuid4())
-            
+
             timestamp = datetime.datetime.now()
             confidence_score = query_state.confidence_score
             summary = json.dumps([convert_dict_to_summaries(x) for x in log_snapshot["pre_filtered_docs"]])

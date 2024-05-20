@@ -27,7 +27,15 @@ def test_get_confidence_score_low():
     assert confidence <= 1
 
 
-def test_score_document_high():
+@pytest.fixture
+def enable_relevancy_score():
+    original_setting = Container.config.get("use_relevancy_score", False)
+    Container.config["use_relevancy_score"] = True
+    yield
+    Container.config["use_relevancy_score"] = original_setting
+
+
+def test_score_document_high(enable_relevancy_score):
     retriever_scoring_chain = Container.retriever_scoring_chain()
     json_corrector_chain = Container.json_corrector_chain()
     aspect_based_summary_chain = Container.aspect_based_summary_chain()
@@ -35,6 +43,7 @@ def test_score_document_high():
     question = "What is the capital of France?"
     page = "In this document we talk about geography. For example, the capital of Italy is Rome. And also the capital of France is Paris."
     doc = Document(page_content=page)
+
     index, doc = summarize_document(doc, 1, question, aspect_based_summary_chain, json_corrector_chain)
     index, doc = score_document(doc, 1, question, retriever_scoring_chain, json_corrector_chain)
 
@@ -93,7 +102,7 @@ def mock_docs_and_scores():
 
 @patch("gen_ai.common.react_utils.score_retrieved_documents")
 @patch("gen_ai.common.react_utils.summarize_retrieved_documents")
-def test_filters_out_below_threshold(mock_summarize, mock_score, mock_docs_and_scores):
+def test_filters_out_below_threshold(mock_summarize, mock_score, mock_docs_and_scores, enable_relevancy_score):
     mock_summarize.return_value = mock_docs_and_scores
     mock_score.return_value = mock_docs_and_scores
 
@@ -105,7 +114,7 @@ def test_filters_out_below_threshold(mock_summarize, mock_score, mock_docs_and_s
 
 @patch("gen_ai.common.react_utils.score_retrieved_documents")
 @patch("gen_ai.common.react_utils.summarize_retrieved_documents")
-def test_returns_only_above_threshold(mock_summarize, mock_score, mock_docs_and_scores):
+def test_returns_only_above_threshold(mock_summarize, mock_score, mock_docs_and_scores, enable_relevancy_score):
     mock_summarize.return_value = mock_docs_and_scores
     mock_score.return_value = mock_docs_and_scores
 

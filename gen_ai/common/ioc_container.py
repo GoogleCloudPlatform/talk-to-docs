@@ -26,10 +26,15 @@ Usage:
 
 import logging
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from logging import Logger
 
+import google.auth
+import google.cloud.logging
 import redis
 from dependency_injector import containers, providers
+from google.api_core.exceptions import GoogleAPIError
+from google.cloud import bigquery
 from langchain.chains import LLMChain
 from langchain.chains.base import Chain
 from langchain.prompts import PromptTemplate
@@ -42,6 +47,29 @@ from gen_ai.common.exponential_retry import LLMExponentialRetryWrapper
 from gen_ai.common.storage import UhgStorage
 from gen_ai.common.vector_provider import VectorStrategy, VectorStrategyProvider
 from gen_ai.constants import LLM_YAML_FILE, MEMORY_STORE_HOST
+
+
+def create_bq_client(project_id: str | None = None) -> bigquery.Client | None:
+    """Creates a BigQuery client.
+    If project_id is not specified, the default project ID will be used.
+    If the default project ID cannot be determined, an error will be raised.
+    Args:
+        project_id (str, optional): The project ID to use. Defaults to None.
+    Returns:
+        A BigQuery client.
+    """
+    if project_id is None:
+        try:
+            _, project_id = google.auth.default()
+        except GoogleAPIError as e:
+            print(f"Failed to authenticate: {e}")
+            return None
+    try:
+        client = bigquery.Client(project=project_id)
+    except GoogleAPIError as e:
+        print(f"Failed to create BigQuery client: {e}")
+        return None
+    return client
 
 
 def provide_chain(template_name: str, input_variables: list[str], output_key: str, llm: LLMChain = None) -> Chain:
@@ -64,7 +92,13 @@ def provide_chain(template_name: str, input_variables: list[str], output_key: st
     llm = llm or Container.llm
     template = Container.config[template_name].strip()
     answer_template = PromptTemplate(input_variables=input_variables, template=template)
-    chain = LLMChain(llm=llm, prompt=answer_template, output_key=output_key, verbose=False, llm_kwargs={"response_mime_type":"application/json"})
+    chain = LLMChain(
+        llm=llm,
+        prompt=answer_template,
+        output_key=output_key,
+        verbose=False,
+        llm_kwargs={"response_mime_type": "application/json"},
+    )
     return LLMExponentialRetryWrapper(chain)
 
 
@@ -100,13 +134,18 @@ def provide_vector_indices(regenerate: bool = False) -> Chroma:
 
 
 def provide_logger() -> Logger:
+    client = google.cloud.logging.Client()
+    cloud_handler = client.get_default_handler()
+    formatter = logging.Formatter("%(asctime)s: %(levelname)s: %(message)s")
     stdout_handler = logging.StreamHandler(stream=sys.stdout)
-    logging.basicConfig(
-        level=logging.INFO,
-        handlers=[stdout_handler],
-        format="%(asctime)s: %(levelname)s: %(message)s",
-    )
-    return logging.getLogger()
+    stdout_handler.setFormatter(formatter)
+
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    logger.addHandler(cloud_handler)
+    logger.addHandler(stdout_handler)
+
+    return logger
 
 
 def provide_redis() -> redis.Redis:
@@ -148,6 +187,11 @@ class Container(containers.DeclarativeContainer):
         vector_indices (Chroma): Chroma vector indices initialized based on configuration.
         redis_db (Provider): Provides a Redis database connection.
         debug_info (bool): Indicates whether debugging is enabled.
+        system_state_id (str | None): System state id
+        question_id (str | None): Question id
+        logging_bq_executor (Provider): Provides Thread Pool Executor
+        logging_bq_client (Provider): Provides BigQuery client
+
 
     Usage:
         Components from the container can be accessed as attributes and are instantiated as needed with configurations
@@ -180,6 +224,13 @@ class Container(containers.DeclarativeContainer):
         provide_chain, "similar_questions_prompt", ["question", "similar_questions_number"], "similar_questions"
     )
 
+    previous_conversation_relevancy_chain = providers.Singleton(
+        provide_chain,
+        "previous_conversation_scoring_prompt",
+        ["previous_question", "previous_answer", "previous_additional_information_to_retrieve", "question"],
+        "text",
+    )
+
     token_counter = providers.Singleton(common.provide_token_counter)
 
     logger = providers.Singleton(provide_logger)
@@ -191,3 +242,5 @@ class Container(containers.DeclarativeContainer):
     comments = "None"
     system_state_id = None
     question_id = None
+    logging_bq_executor = providers.Singleton(ThreadPoolExecutor, max_workers=1)
+    logging_bq_client = providers.Singleton(create_bq_client, config.get("bq_project_id"))

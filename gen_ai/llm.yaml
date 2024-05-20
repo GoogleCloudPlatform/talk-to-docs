@@ -6,7 +6,7 @@ embeddings_name: vertexai
 embeddings_model_name: textembedding-gecko@003
 vector_name: chroma
 document_retriever: semantic
-api_mode: stateless
+api_mode: stateful
 max_rounds: 1
 print_system_metrics: true
 temperature: 0.5
@@ -22,9 +22,54 @@ terraform_instance_name: talk-to-docs-instance
 terraform_redis_name: talk-to-docs-redis-instance
 gcs_source_bucket: gs://uhg_data/extractions_20240418
 similar_questions_number: 0
+previous_conversations_number: 2
+previous_conversation_score_threshold: 2
 
 is_debug: false
 gradio_root_path: /t2x-mig-ui
+
+previous_conversation_scoring_prompt: |
+  You are an expert relevance evaluator tasked with determining how relevant a previous conversation is to a specific question. Your evaluation must be provided in a JSON format. Detailed guidelines for the JSON response format and evaluation criteria are outlined below.
+
+  <Examples>
+    <Example>
+      <Question>My doctor is recommending I start having a 3D mammography for my routine mammogram screenings. Are those covered?</Question>
+      <PreviousQuestion>I would like to know if there are mammography screenings available</PreviousQuestion>
+      <PreviousAnswer>Yes, mammography screenings are available</PreviousAnswer>
+      <PreviousInformationToRetrieve>Mammography plan and cost benefits</PreviousInformationToRetrieve>
+      <Output>
+        {{
+          "relevancy_score": 5,
+          "relevancy_reasoning": "The question concerns the coverage of 3D mammograms. The previous question and answer is very relevant to the current question, therefore the relevancy_score must be high."
+        }}
+      </Output>
+    </Example>
+  </Examples>
+
+  <Instructions>
+    - The output MUST BE A VALID JSON. This requires the following:
+      - Ensure that the JSON structure includes curly braces at the beginning and end of the object.
+      - Use double quotes for all keys and string values.
+      - Ensure that keys and values are separated by a colon.
+      - Separate multiple key-value pairs with commas.
+      - Avoid trailing commas after the last key-value pair.
+      - Avoid ticks "`"" and triple ticks "```"" in the response.
+      - Special characters in strings should be escaped using backslashes (e.g., use \\" for double quotes within strings).
+      - Response format - all the fields need to be returned as strings. 
+    - The JSON output should clearly define a relevancy score and reasoning:
+      {{
+        "relevancy_score": <Number between 0 and 5 indicating how relevant the previous conversation is to the question>,
+        "relevancy_reasoning": "<Step-by-step detailed reasoning about the previous conversation's relevance to the question>"
+      }}
+    - Ensure that no syntax errors are present in the JSON output, such as missing quotes or misplaced brackets.
+  </Instructions>
+
+  Now it's your turn!
+  <PreviousQuestion>{previous_question}</PreviousQuestion>
+  <PreviousAnswer>{previous_answer}</PreviousAnswer>
+  <PreviousInformationToRetrieve>{previous_additional_information_to_retrieve}</PreviousInformationToRetrieve>
+  <Question>{question}</Question>
+
 
 aspect_based_summary_prompt: |
   You are a professional summarizer of the documents. You receive the question and the document. It is expected that the document may contain an answer to the question.
@@ -218,9 +263,19 @@ simple_react_chain_prompt: |
   You will be given context, which contains documents. You will need to answer the question based on the context.
   <Instructions>
     - The context will come as documents, separated with DOCUMENT TITLE and DOCUMENT CONTENT
-    - Include only relevant paragraphs of texts into "context_used". Separate the relevant paragraphs of text the same way as they were given in the context with DOCUMENT TITLE and DOCUMENT CONTENT
+    - The context may contain previous questions, previous answers and previous contexts. In this case it will be flagged as 'Previous question was', etc.
+    - If the context contains Previous context, try to answer the question, incorporating details from previous documents, answers, questions.
+    - Write empty string in "context_used"
     - Include follow-up question into "additional_information_to_retrieve"
     - Write the plan of answer and reasoning into "plan_and_summaries"
+    - The output MUST BE A VALID JSON. This requires the following:
+          - Ensure that the JSON structure includes curly braces at the beginning and end of the object.
+          - Use double quotes for all keys and string values.
+          - Ensure that keys and values are separated by a colon.
+          - Separate multiple key-value pairs with commas.
+          - Avoid trailing commas after the last key-value pair.
+          - Avoid ticks "`"" and triple ticks "```"" in the response.
+          - Special characters in strings should be escaped using backslashes (e.g., use \\" for double quotes within strings).
   </Instructions>
   Here is the context: {context}
 
@@ -230,7 +285,7 @@ simple_react_chain_prompt: |
     "plan_and_summaries": "Here provide plan of answer and reasoning about it",
     "answer": "Here provide the answer to the question",
     "additional_information_to_retrieve": "Here provide follow-up question",
-    "context_used": "Here provide the relevant paragraphs of text"
+    "context_used": "Here just fill empty string"
   }}
 
 react_chain_prompt: |

@@ -26,148 +26,25 @@ Dependencies:
     - json5: Used for JSON parsing.
 """
 
+import uuid
 from timeit import default_timer
 from typing import Any
-import uuid
 
 import json5
 from dependency_injector.wiring import inject
 from langchain.chains import LLMChain
 from langchain.schema import Document
 
-from gen_ai.common.argo_logger import create_log_snapshot, trace_on
-from gen_ai.common.bq_utils import BigQueryConverter, create_bq_client, load_data_to_bq, get_dataset_id, log_question
-from gen_ai.common.common import TokenCounter, merge_outputs, remove_duplicates, split_large_document, update_used_docs
+from gen_ai.common.argo_logger import create_log_snapshot
+from gen_ai.common.bq_utils import load_data_to_bq
+from gen_ai.common.common import merge_outputs, remove_duplicates
 from gen_ai.common.ioc_container import Container
 from gen_ai.common.memorystore_utils import serialize_previous_conversation
-from gen_ai.common.react_utils import get_confidence_score
+from gen_ai.common.react_utils import filter_non_relevant_previous_conversations, get_confidence_score
 from gen_ai.common.retriever import perform_retrieve_round, retrieve_initial_documents
 from gen_ai.common.statefullness import resolve_and_enrich, serialize_response
-from gen_ai.constants import MAX_CONTEXT_SIZE
-from gen_ai.create_tables import schema_prediction
+from gen_ai.common.document_utils import generate_contexts_from_docs
 from gen_ai.deploy.model import Conversation, PersonalizedData, QueryState, transform_to_dictionary
-
-
-def build_doc_title(metadata: dict[str, str]) -> str:
-    """Constructs a document title string based on provided metadata.
-
-    This function takes a dictionary containing various metadata fields,
-    including "set_number," "section_name," "doc_identifier," and "policy_number."
-    It concatenates these values to form a document title string.
-
-    Args:
-        metadata (dict[str, str]): A dictionary with potential metadata fields.
-            - "set_number": An identifier representing the set number.
-            - "section_name": The name of the relevant section.
-            - "doc_identifier": A unique identifier for the document.
-            - "policy_number": The specific number of the associated policy.
-
-    Returns:
-        str: A concatenated string containing the document title information
-        based on the provided metadata fields.
-
-    """
-    doc_title = ""
-    if metadata["set_number"]:
-        doc_title += metadata["set_number"] + " "
-    if metadata["section_name"]:
-        doc_title += metadata["section_name"] + " "
-    if metadata["doc_identifier"]:
-        doc_title += metadata["doc_identifier"] + " "
-    if metadata["policy_number"]:
-        doc_title += metadata["policy_number"] + " "
-    return doc_title
-
-
-@inject
-@trace_on("Generating context from documents", measure_time=True)
-def generate_contexts_from_docs(docs_and_scores: list[Document], query_state: QueryState) -> list[str]:
-    """
-    Generates textual contexts from a list of documents, preparing them for input to a language model.
-
-    This function processes each document to extract content up to a specified token limit, organizing this content
-    into manageable sections that fit within the maximum context size for a language model. It handles large documents
-    by splitting them into chunks and maintains a count of used tokens and documents to optimize the subsequent
-    language model processing.
-
-    Args:
-        docs_and_scores (list[Document]): A list of Document objects, each containing metadata and content
-            to be used in generating context. These documents are assumed to be scored and potentially filtered
-            by relevance to the query.
-        query_state (QueryState): The current state of the query, including details like previously used tokens
-            and documents. This state is updated during the function execution to include details about the
-            documents and tokens used in this invocation.
-
-    Returns:
-        list[str]: A list of strings, where each string represents a textual context segment formed from the
-            document content. Each segment is designed to be within the token limits suitable for processing
-            by a language model.
-
-    Raises:
-        ValueError: If any document does not contain the necessary content or metadata for processing.
-
-    Examples:
-        >>> docs = [Document(page_content="Content of the document.",
-        metadata={"section_name": "Section 1", "summary": "Summary of the document.", "relevancy_score": 0.95})]
-        >>> query_state = QueryState(question="What is the purpose of the document?",
-        answer="To provide information.", additional_information_to_retrieve="")
-        >>> contexts = generate_contexts_from_docs(docs, query_state)
-        >>> print(contexts[0])
-        "Content of the document."
-
-    Note:
-        The function modifies the `query_state` object in-place, updating it with details about the tokens and
-        documents used during the context generation process. Ensure that the `query_state` object is appropriately
-        handled to preserve the integrity of the conversation state.
-    """
-    num_docs_used = [0]
-    contexts = ["\n"]
-    token_counts = [0]
-    used_articles = []
-    token_counter: TokenCounter = Container.token_counter()
-
-    for doc in docs_and_scores:
-        filename = doc.metadata["section_name"]
-
-        doc_content = doc.page_content if Container.config.get("use_full_documents", False) else doc.metadata["summary"]
-        doc_tokens = token_counter.get_num_tokens_from_string(doc_content)
-        if doc_tokens > MAX_CONTEXT_SIZE:
-            doc_chunks = split_large_document(doc_content, MAX_CONTEXT_SIZE)
-        else:
-            doc_chunks = [(doc_content, doc_tokens)]
-
-        for doc_chunk, doc_tokens in doc_chunks:
-
-            if token_counts[-1] + doc_tokens >= MAX_CONTEXT_SIZE:
-                token_counts.append(0)
-                contexts.append("\n")
-                num_docs_used.append(0)
-
-            used_articles.append((f"{filename} Context: {len(contexts)}", doc.metadata["relevancy_score"]))
-            token_counts[-1] += doc_tokens
-
-            contexts[-1] += "DOCUMENT TITLE: "
-            contexts[-1] += build_doc_title(doc.metadata) + "\n"
-            contexts[-1] += "DOCUMENT CONTENT: "
-            contexts[-1] += doc_chunk
-            contexts[-1] += "\n" + "-" * 12 + "\n"
-            num_docs_used[-1] += 1
-
-    contexts[-1] += "\n"
-
-    query_state.input_tokens = token_counts
-    query_state.num_docs_used = num_docs_used
-    query_state.used_articles_with_scores = update_used_docs(used_articles, query_state)
-
-    Container.logger().info(msg=f"Docs used: {num_docs_used}, tokens used: {token_counts}")
-    Container.logger().info(msg=f"Doc names with relevancy scores: {query_state.used_articles_with_scores}")
-
-    doc_attributes = [
-        (x.metadata["original_filepath"], x.metadata["doc_identifier"], x.metadata["section_name"])
-        for x in docs_and_scores
-    ]
-    Container.logger().info(msg=f"Doc attributes: {doc_attributes}")
-    return contexts
 
 
 def get_total_count(question: str, selected_context: str, previous_rounds: str, final_round_statement: str) -> str:
@@ -243,19 +120,35 @@ def generate_response_react(conversation: Conversation) -> tuple[Conversation, l
 
     query_state = conversation.exchanges[-1]
     question = query_state.question
-    log_question(question)
 
     query_state.react_rounds = []
     log_snapshots = []
     round_number = len(query_state.react_rounds) + 1
     if len(conversation.exchanges) > 1 and config.get("api_mode") == "stateful":
-        previous_context = serialize_previous_conversation(conversation.exchanges[-2])
+        number_of_previous_conversations = config.get("previous_conversations_number")
+        previous_conversations = conversation.exchanges[:-1][:number_of_previous_conversations]
+        relevant_previous_conversations = filter_non_relevant_previous_conversations(previous_conversations, question)
+        previous_context = serialize_previous_conversation(relevant_previous_conversations[::-1])
+        previous_questions = [x.question for x in relevant_previous_conversations]
     else:
         previous_context = ""
+        previous_questions = None
+        prev_pre_filtered_docs, prev_post_filtered_docs = [], []
 
     pre_filtered_docs, post_filtered_docs = retrieve_initial_documents(
         round_number, question, vector_indices, document_retriever_name, member_info
     )
+
+    if previous_questions:
+        concatenated_with_previous = previous_questions + [question]
+        prev_pre_filtered_docs, prev_post_filtered_docs = perform_retrieve_round(
+            -1, concatenated_with_previous, vector_indices, document_retriever_name, member_info
+        )
+        pre_filtered_docs = prev_pre_filtered_docs + pre_filtered_docs
+        pre_filtered_docs = remove_duplicates(pre_filtered_docs)
+        post_filtered_docs = prev_post_filtered_docs + post_filtered_docs
+        post_filtered_docs = remove_duplicates(post_filtered_docs)
+
     contexts = generate_contexts_from_docs(post_filtered_docs, query_state)
 
     final_round_statement = ""
@@ -323,10 +216,8 @@ def generate_response_react(conversation: Conversation) -> tuple[Conversation, l
                         Container.logger().info(msg=str(e2))
                         done = False
                         attempts -= 1
-            if (
-                "answer" not in output
-                or "context_used" not in output
-                or (len(post_filtered_docs) == 0 and not output.get("additional_information_to_retrieve", None))
+            if "answer" not in output or (
+                len(post_filtered_docs) == 0 and not output.get("additional_information_to_retrieve", None)
             ):
                 output["answer"] = "I was not able to answer this question"
                 output["plan_and_summaries"] = ""
@@ -344,6 +235,8 @@ def generate_response_react(conversation: Conversation) -> tuple[Conversation, l
         output, confidence, index = merge_outputs(round_outputs)
         selected_context = contexts[index]
 
+        if "context_used" not in output:
+            output["context_used"] = ""
         react_snapshot = {
             "round_number": round_number,
             "plan_and_summaries": output["plan_and_summaries"],
@@ -480,10 +373,19 @@ def respond(conversation: Conversation, member_info: dict) -> Conversation:
         Exception: If issues arise in conversation processing or during response generation.
     """
     conversation.member_info = member_info
+    if conversation.member_info and "set_number" in conversation.member_info:
+        conversation.member_info["set_number"] = conversation.member_info["set_number"].lower()
+    if conversation.member_info and "session_id" in conversation.member_info:
+        conversation.session_id = conversation.member_info["session_id"]
+    else:
+        conversation.session_id = str(uuid.uuid4())
 
     api_mode = Container.config.get("api_mode", "stateless")
     statefullness_enabled = api_mode == "stateful"
     if statefullness_enabled:
+        if "member_id" not in member_info:
+            Container.logger().error("Stateful API is enabled, but no member_id was provided")
+            raise ValueError("Member id is not provided for Stateful API and Multi-Turn")
         conversation = resolve_and_enrich(conversation)
 
     conversation, log_snapshots = generate_response_react(conversation)
@@ -491,14 +393,8 @@ def respond(conversation: Conversation, member_info: dict) -> Conversation:
     if statefullness_enabled:
         serialize_response(conversation)
 
-    session_id = Container.session_id if hasattr(Container, "session_id") else str(uuid.uuid4())
-    df = BigQueryConverter.convert_query_state_to_prediction(conversation.exchanges[-1], log_snapshots, session_id)
-    client = create_bq_client()
-    dataset_id = get_dataset_id()
-    table_id = f"{dataset_id}.prediction"
-    load_data_to_bq(client, table_id, schema_prediction, df)
+    Container.logging_bq_executor().submit(load_data_to_bq, conversation, log_snapshots)
 
-    conversation.session_id = session_id
     return conversation
 
 

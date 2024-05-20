@@ -42,8 +42,9 @@ import json5
 from langchain.chains import LLMChain
 from langchain.schema import Document
 
-from gen_ai.common.argo_logger import trace_on
+from gen_ai.common.measure_utils import trace_on
 from gen_ai.common.ioc_container import Container
+from gen_ai.deploy.model import QueryState
 from gen_ai.constants import RETRIEVER_SCORE_THRESHOLD
 
 
@@ -310,6 +311,67 @@ def summarize_retrieved_documents(docs: List[Document], question: str) -> List[D
     return summarized_docs
 
 
+def score_previous_conversation(
+    query_state: QueryState,
+    index: int,
+    question: str,
+    previous_conversation_relevancy_chain: LLMChain,
+    json_corrector_chain: LLMChain,
+) -> Tuple[int, QueryState, int]:
+    try:
+        output_raw = previous_conversation_relevancy_chain.run(
+            previous_question=query_state.question,
+            previous_answer=query_state.answer,
+            previous_additional_information_to_retrieve=query_state.additional_information_to_retrieve,
+            question=question,
+        )
+        try:
+            output_raw = output_raw.replace("```json", "").replace("```", "")
+            output = json5.loads(output_raw)
+        except Exception:  # pylint: disable=W0718
+            json_output = json_corrector_chain.run(json=output_raw)
+            json_output = json_output.replace("```json", "").replace("```", "")
+            output = json5.loads(json_output)
+        relevancy_score = int(output["relevancy_score"])
+    except Exception as e:  # pylint: disable=W0718
+        print("Error in parsing the document for relevancy score")
+        print(str(e))
+        relevancy_score = 0
+
+    return index, query_state, relevancy_score
+
+
+def filter_non_relevant_previous_conversations(query_states: list[QueryState], question) -> list[QueryState]:
+    previous_conversation_relevancy_chain = Container.previous_conversation_relevancy_chain()
+    json_corrector_chain = Container.json_corrector_chain()
+    scored_query_states = [" "] * len(query_states)
+    scores = [0] * len(query_states)
+    with ThreadPoolExecutor() as executor:
+        future_to_doc = {
+            executor.submit(
+                score_previous_conversation,
+                query_state,
+                i,
+                question,
+                previous_conversation_relevancy_chain,
+                json_corrector_chain,
+            ): query_state
+            for i, query_state in enumerate(query_states)
+        }
+
+        for future in as_completed(future_to_doc):
+            index, doc, relevancy_score = future.result()
+            scored_query_states[index] = doc
+            scores[index] = relevancy_score
+
+    filtered_previous_conversations = []
+    for i in range(len(scored_query_states)):
+        if scores[i] >= Container.config.get("previous_conversation_score_threshold", 1):
+            filtered_previous_conversations.append(scored_query_states[i])
+
+    return filtered_previous_conversations
+
+
 def print_doc_summary_and_relevance(docs_and_scores: list[Document]):
     """
     Print detailed summaries, relevancy reasoning, and scores for a list of documents.
@@ -392,7 +454,7 @@ def summarize_and_score_documents(
     docs_and_scores = score_retrieved_documents(docs_and_scores, question)
     if Container.debug_info:
         print_doc_summary_and_relevance(docs_and_scores)
-    if Container.config['use_relevancy_score']:
+    if Container.config["use_relevancy_score"]:
         docs_and_scores = [x for x in docs_and_scores if x.metadata["relevancy_score"] >= threshold]
     if Container.debug_info:
         print("---- Filtered documents ----")
