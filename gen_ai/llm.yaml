@@ -1,31 +1,47 @@
 # This file defines the LLM prompts and configuration parameters used
 # to converse with a user.
-model_name: gemini-1.5-pro-preview-0409
-scoring_model_name: gemini-1.5-pro-preview-0409
+# Project and User specific configuration
+bq_project_id: dauren-genai-bb # change for the user's project id
+dataset_name: dataset_name # change for new project
+gcs_source_bucket: gs://bucket location # change for new project
+terraform_credentials: terraform-service-account-credentials.json # change for the user
+terraform_instance_name: talk-to-docs-instance
+terraform_redis_name: talk-to-docs-redis-instance
+memory_store_ip: 10.151.191.44 # change to your redis IP
+customer_name: Customer # change for new project (gradio)
+customer_logo: https://www.gstatic.com/pantheon/images/welcome/supercloud.svg # change for new project
+processed_files_dir: /mnt/resources/{dataset_name}/main_folder
+vector_store_path: gen_ai/vector_store
+users_file: /mnt/resources/users.json
+logs_directory: gen_ai/logs
+gradio_root_path: /t2x-mig-ui
+# Technical configuration
+model_name: gemini-1.5-flash-preview-0514
+scoring_model_name: gemini-1.5-flash-preview-0514
 embeddings_name: vertexai
 embeddings_model_name: textembedding-gecko@003
 vector_name: chroma
-document_retriever: semantic
-api_mode: stateful
-max_rounds: 1
-print_system_metrics: true
-temperature: 0.5
+document_retriever: semantic #custom is for custom use case
+api_mode: stateless
 personalization: true
-debug_info: false
+temperature: 0.5
+max_output_tokens: 4000
+max_context_size: 1025000
+max_rounds: 2
+similar_questions_number: 0
 use_full_documents: true
 use_relevancy_score: false
+retriever_score_threshold: 2
+max_number_of_docs_retrieved: 3
 use_mmr: false
-dataset_name: uhg
-terraform_credentials: /home/chertushkin/terraform-service-account-credentials.json
-terraform_instance_name: talk-to-docs-instance
-terraform_redis_name: talk-to-docs-redis-instance
-gcs_source_bucket: gs://uhg_data/extractions_20240418
-similar_questions_number: 0
+max_number_of_docs_retrieved_mmr: 3
 previous_conversations_number: 2
 previous_conversation_score_threshold: 2
+parallel_main_llm_calls: 5
 
 is_debug: false
-gradio_root_path: /t2x-mig-ui
+print_system_metrics: true
+debug_info: false
 
 previous_conversation_scoring_prompt: |
   You are an expert relevance evaluator tasked with determining how relevant a previous conversation is to a specific question. Your evaluation must be provided in a JSON format. Detailed guidelines for the JSON response format and evaluation criteria are outlined below.
@@ -267,14 +283,36 @@ simple_react_chain_prompt: |
     - Write empty string in "context_used"
     - Include follow-up question into "additional_information_to_retrieve"
     - Write the plan of answer and reasoning into "plan_and_summaries"
+    - Think from the perspective of a Customer Advocate trying to accurately answer a policy holder's question, and include all the information that will be helpful, as described below:
+      - Include both INN (In-Network) benefits and OON (Out-of-Network) benefits and clearly segregate the benefits, so that there is no confusion.
+      - Include complete information such as but not limited to:
+      - Eligible or covered expenses
+      - Member responsibility and family maximums
+      - Copayment dollar amounts per individual, including cost savings options
+      - Annual Deductible dollar amounts per individual, including cost savings options
+      - Note: Review deductible verbiage to see if a cumulative deductible applies.
+      - Coinsurance amount
+      - Specify the benefits by place of service, provide the member's cost share for all places of service.
+      - Include any helpful websites or phone numbers referenced in the documents
+      - Any notification requirements
+      - Any referral requirements
+      - Any prior authorization requirements
+      - Any exclusions
+      - Any provider licensing or certification requirements
+      - Any patient age or gender requirements/restrictions
+      - Any visit limits per a specific time frame
+      - Any dollar limitations per a specific time frame
+      - Combined limitations 
     - The output MUST BE A VALID JSON. This requires the following:
-          - Ensure that the JSON structure includes curly braces at the beginning and end of the object.
-          - Use double quotes for all keys and string values.
-          - Ensure that keys and values are separated by a colon.
-          - Separate multiple key-value pairs with commas.
-          - Avoid trailing commas after the last key-value pair.
-          - Avoid ticks "`"" and triple ticks "```"" in the response.
-          - Special characters in strings should be escaped using backslashes (e.g., use \\" for double quotes within strings).
+        - Ensure that the JSON structure includes curly braces at the beginning and end of the object.
+        - Use double quotes for all keys and string values.
+        - Ensure that keys and values are separated by a colon.
+        - Separate multiple key-value pairs with commas.
+        - Avoid trailing commas after the last key-value pair.
+        - Avoid ticks "`"" and triple ticks "```"" in the response.
+        - Special characters in strings should be escaped using backslashes (e.g., use \\" for double quotes within strings).
+
+
   </Instructions>
   Here is the context: {context}
 
@@ -282,7 +320,7 @@ simple_react_chain_prompt: |
   You need to provide the response in JSON format:
   {{
     "plan_and_summaries": "Here provide plan of answer and reasoning about it",
-    "answer": "Here provide the answer to the question",
+    "answer": "Here provide the answer to the question. Answer should be clear, helpful and neither too long nor to short",
     "additional_information_to_retrieve": "Here provide follow-up question",
     "context_used": "Here just fill empty string"
   }}

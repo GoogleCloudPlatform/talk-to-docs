@@ -39,7 +39,7 @@ jobs:
     - name: Lint with pylint
       run: |
         # stop the build if there are Python syntax errors or undefined names
-        pylint gen_ai/llm.py gen_ai/common gen_ai/deploy gen_ai/check_pipeline.py
+        pylint gen_ai/llm.py gen_ai/common gen_ai/deploy gen_ai/check_pipeline.py gen_ai/custom_client_functions.py
     - name: Create directory structure in writable area
       run: mkdir -p $HOME/resources/uhg/main_folder
     - name: Create symlink

@@ -60,9 +60,9 @@ def respond(query: ItemInput) -> LLMOutput:
         additional_information_to_retrieve="",
         context_used=conversation.exchanges[-1].relevant_context,
         urls_to_kc=conversation.exchanges[-1].urls,
-        attributes_to_b360=conversation.exchanges[-1].attributes_to_b360,
-        attributes_to_kc_km=conversation.exchanges[-1].attributes_to_kc_km,
-        attributes_to_kc_mp=conversation.exchanges[-1].attributes_to_kc_mp,
+        attributes_to_b360=conversation.exchanges[-1].custom_fields["attributes_to_b360"],
+        attributes_to_kc_km=conversation.exchanges[-1].custom_fields["attributes_to_kc_km"],
+        attributes_to_kc_mp=conversation.exchanges[-1].custom_fields["attributes_to_kc_mp"],
         confidence_score=str(conversation.exchanges[-1].confidence_score),
         session_id=conversation.session_id,
     )

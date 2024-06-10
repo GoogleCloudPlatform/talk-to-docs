@@ -10,7 +10,7 @@ from typing import Any
 from gen_ai.common.measure_utils import trace_on
 from gen_ai.common.common import TokenCounter, split_large_document, update_used_docs
 from gen_ai.common.ioc_container import Container
-from gen_ai.constants import MAX_CONTEXT_SIZE
+from gen_ai.custom_client_functions import build_doc_title, extract_doc_attributes
 from gen_ai.deploy.model import QueryState
 
 
@@ -87,40 +87,6 @@ def convert_dict_to_relevancies(doc: dict) -> dict[str, Any]:
     return doc_json
 
 
-def build_doc_title(metadata: dict[str, str]) -> str:
-    """Constructs a document title string based on provided metadata.
-
-    This function takes a dictionary containing various metadata fields,
-    including "set_number," "section_name," "doc_identifier," and "policy_number."
-    It concatenates these values to form a document title string.
-
-    Args:
-        metadata (dict[str, str]): A dictionary with potential metadata fields.
-            - "set_number": An identifier representing the set number.
-            - "section_name": The name of the relevant section.
-            - "doc_identifier": A unique identifier for the document.
-            - "policy_number": The specific number of the associated policy.
-            - "symbols": The symbols of the document.
-
-    Returns:
-        str: A concatenated string containing the document title information
-        based on the provided metadata fields.
-
-    """
-    doc_title = ""
-    if metadata.get("set_number"):
-        doc_title += metadata["set_number"] + " "
-    if metadata.get("section_name"):
-        doc_title += metadata["section_name"] + " "
-    if metadata.get("doc_identifier"):
-        doc_title += metadata["doc_identifier"] + " "
-    if metadata.get("policy_number"):
-        doc_title += metadata["policy_number"] + " "
-    if metadata.get("symbols"):
-        doc_title += metadata["symbols"] + " "
-    return doc_title
-
-
 @inject
 @trace_on("Generating context from documents", measure_time=True)
 def generate_contexts_from_docs(docs_and_scores: list[Document], query_state: QueryState | None = None) -> list[str]:
@@ -167,20 +133,21 @@ def generate_contexts_from_docs(docs_and_scores: list[Document], query_state: Qu
     token_counts = [0]
     used_articles = []
     token_counter: TokenCounter = Container.token_counter()
+    max_context_size = Container.config.get("max_context_size", 1000000)
 
     for doc in docs_and_scores:
         filename = doc.metadata["section_name"]
 
         doc_content = doc.page_content if Container.config.get("use_full_documents", False) else doc.metadata["summary"]
         doc_tokens = token_counter.get_num_tokens_from_string(doc_content)
-        if doc_tokens > MAX_CONTEXT_SIZE:
-            doc_chunks = split_large_document(doc_content, MAX_CONTEXT_SIZE)
+        if doc_tokens > max_context_size:
+            doc_chunks = split_large_document(doc_content, max_context_size)
         else:
             doc_chunks = [(doc_content, doc_tokens)]
 
         for doc_chunk, doc_tokens in doc_chunks:
 
-            if token_counts[-1] + doc_tokens >= MAX_CONTEXT_SIZE:
+            if token_counts[-1] + doc_tokens >= max_context_size:
                 token_counts.append(0)
                 contexts.append("\n")
                 num_docs_used.append(0)
@@ -205,9 +172,6 @@ def generate_contexts_from_docs(docs_and_scores: list[Document], query_state: Qu
         query_state.used_articles_with_scores = update_used_docs(used_articles, query_state)
         Container.logger().info(msg=f"Doc names with relevancy scores: {query_state.used_articles_with_scores}")
 
-    doc_attributes = [
-        (x.metadata["original_filepath"], x.metadata["doc_identifier"], x.metadata["section_name"])
-        for x in docs_and_scores
-    ]
+    doc_attributes = extract_doc_attributes(docs_and_scores)
     Container.logger().info(msg=f"Doc attributes: {doc_attributes}")
     return contexts

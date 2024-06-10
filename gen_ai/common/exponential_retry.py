@@ -45,6 +45,8 @@ import functools
 import time
 
 from google.api_core.exceptions import GoogleAPICallError, InternalServerError
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Callable, Any
 
 
 def retry_with_exponential_backoff(max_retries=15, initial_delay=2, backoff_factor=2):
@@ -102,6 +104,59 @@ def retry_with_exponential_backoff(max_retries=15, initial_delay=2, backoff_fact
         return wrapper
 
     return decorator_retry
+
+
+def concurrent_best_reduce(num_calls):
+    """
+    Decorator to run a function concurrently multiple times and return the best result.
+
+    This decorator enhances a function by executing it concurrently across multiple threads, 
+    using a ThreadPoolExecutor.
+    The results from all concurrent executions are compared based on a specified metric (assumed to be the second 
+    element of the return tuple),
+    and the best result (highest score according to the metric) is returned.
+
+    Args:
+        num_calls: The number of times to concurrently execute the wrapped function.
+
+    Returns:
+        Callable: A decorated version of the input function that performs concurrent execution and returns the best 
+        result.
+
+    Example:
+        @concurrent_best_reduce(num_calls=3)
+        def my_func(arg1, arg2) -> Tuple[Any, float]:
+            # ... do some work
+            return result, score  # Where score is the metric to optimize
+
+        best_result = my_func("input1", "input2")
+    """
+
+    def decorator(func: Callable[..., tuple[Any, float]]) -> Callable[..., tuple[Any, float]]:
+        def wrapper(*args: Any, **kwargs: Any) -> tuple[Any, float]:
+            """
+            Inner wrapper to handle concurrent execution and result selection.
+
+            Args:
+                *args: Positional arguments for the wrapped function.
+                **kwargs: Keyword arguments for the wrapped function.
+
+            Returns:
+                Tuple[Any, float]: The best result from the concurrent executions (result, score).
+            """
+            results: list[tuple[Any, float]] = []
+            with ThreadPoolExecutor(max_workers=num_calls) as executor:
+                futures = [executor.submit(func, *args, **kwargs) for _ in range(num_calls)]
+                for future in as_completed(futures):
+                    results.append(future.result())
+
+            print(f"Selecting Best LLM call from {num_calls} calls...")
+            best_result: tuple[Any, float] = max(results, key=lambda x: x[1])
+            return best_result
+
+        return wrapper
+
+    return decorator
 
 
 class LLMExponentialRetryWrapper:

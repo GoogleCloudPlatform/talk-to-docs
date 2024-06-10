@@ -99,7 +99,7 @@ class DefaultHtmlExtractor:
         return None
 
 
-class UhgHtmlExtractor:
+class CustomHtmlExtractor:
     """Custom Extractor class processes HTML files, specifically handling ordered lists, tables and other HTML tags.
 
     It offers methods to extract content from HTML and convert it cleanly into

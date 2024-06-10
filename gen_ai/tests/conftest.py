@@ -19,6 +19,6 @@ def override_processed_files_dir():
         `autouse=True`. There is no need to explicitly use it in your test functions.
     """
     original_dir = constants.PROCESSED_FILES_DIR
-    constants.PROCESSED_FILES_DIR = f'{os.getenv("HOME")}/resources/uhg/main_folder'
+    constants.PROCESSED_FILES_DIR = f'{os.getenv("HOME")}/resources/dataset_name/main_folder'
     yield
     constants.PROCESSED_FILES_DIR = original_dir

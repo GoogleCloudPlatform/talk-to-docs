@@ -36,7 +36,6 @@ from google.cloud.bigquery.schema import SchemaField
 
 from gen_ai.common.document_utils import convert_dict_to_relevancies, convert_dict_to_summaries
 from gen_ai.common.ioc_container import Container
-from gen_ai.constants import MAX_OUTPUT_TOKENS
 from gen_ai.deploy.model import Conversation, QueryState
 
 
@@ -176,7 +175,8 @@ def log_system_status(session_id: str) -> str:
     gcs_bucket = Container.config["gcs_source_bucket"]
     model_name = Container.config["model_name"]
     temperature = Container.config["temperature"]
-    pipeline_parameters = f"model: {model_name}; temperature: {temperature}; max_tokens: {MAX_OUTPUT_TOKENS}"
+    max_output_tokens = Container.config.get("max_output_tokens", 4000)
+    pipeline_parameters = f"model: {model_name}; temperature: {temperature}; max_tokens: {max_output_tokens}"
 
     comments = Container.comments
     system_state_id = str(
@@ -335,10 +335,16 @@ class BigQueryConverter:
             react_round_number = round_number
             response = query_state.answer or ""
             retrieved_documents_so_far = json.dumps(
-                [{"original_filepath": x["metadata"]["original_filepath"]} for x in log_snapshot["pre_filtered_docs"]]
+                [
+                    {"original_filepath": x["metadata"].get("original_filepath")}
+                    for x in log_snapshot["pre_filtered_docs"]
+                ]
             )
             post_filtered_documents_so_far = json.dumps(
-                [{"original_filepath": x["metadata"]["original_filepath"]} for x in log_snapshot["post_filtered_docs"]]
+                [
+                    {"original_filepath": x["metadata"].get("original_filepath")}
+                    for x in log_snapshot["post_filtered_docs"]
+                ]
             )
             retrieved_documents_so_far_content = json.dumps(
                 [{"page_content": x["page_content"]} for x in log_snapshot["pre_filtered_docs"]]

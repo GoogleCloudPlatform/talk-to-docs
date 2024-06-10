@@ -22,7 +22,7 @@ Functions:
     print_doc_summary_and_relevance(docs_and_scores: List[Document]):
         Print summaries and relevance details for a list of documents.
     summarize_and_score_documents(
-        docs_and_scores: List[Document], question: str, threshold: int = RETRIEVER_SCORE_THRESHOLD) -> List[Document]:
+        docs_and_scores: List[Document], question: str, threshold: int | None = None) -> List[Document]:
         Summarize and score documents based on their relevance to a specific question and filter them by a 
         relevancy score threshold.
 
@@ -45,8 +45,6 @@ from langchain.schema import Document
 from gen_ai.common.measure_utils import trace_on
 from gen_ai.common.ioc_container import Container
 from gen_ai.deploy.model import QueryState
-from gen_ai.constants import RETRIEVER_SCORE_THRESHOLD
-
 
 def get_confidence_score(question: str, answer: str) -> int:
     """Calculate confidence score for the given question-answer pair.
@@ -417,7 +415,7 @@ def print_doc_summary_and_relevance(docs_and_scores: list[Document]):
 
 @trace_on("Summarizing documents and scoring them", measure_time=True)
 def summarize_and_score_documents(
-    docs_and_scores: List[Document], question: str, threshold: int = RETRIEVER_SCORE_THRESHOLD
+    docs_and_scores: List[Document], question: str, threshold: int | None = None
 ) -> List[Document]:
     """
     Processes a list of documents by summarizing and scoring them based on a specified question,
@@ -427,7 +425,7 @@ def summarize_and_score_documents(
     on the given question using `summarize_retrieved_documents`. It then scores these summarized documents
     for their relevance to the question with `score_retrieved_documents`. Finally, it filters and returns
     only those documents whose relevancy scores meet or exceed a predefined threshold,
-    indicated by `RETRIEVER_SCORE_THRESHOLD`.
+    indicated by `retriever_score_threshold`.
 
     Args:
         docs_and_scores (List[Document]): A list of Document objects. Each Document should include
@@ -444,12 +442,13 @@ def summarize_and_score_documents(
           documents based on the question.
         - The `score_retrieved_documents` function assigns a relevancy score to each summarized document,
           evaluating how well the document's content addresses the question.
-        - The `RETRIEVER_SCORE_THRESHOLD` is a predefined constant that specifies the minimum score a document
+        - The `retriever_score_threshold` is a predefined constant that specifies the minimum score a document
           must have to be considered relevant.
         - It is assumed that each Document object has a `metadata` attribute where the relevancy score can be
           accessed using the key `'relevancy_score'`.
     """
     print("Docs used before summary/scoring: ", len(docs_and_scores))
+    threshold = threshold or Container.config.get("retriever_score_threshold", 2)
     docs_and_scores = summarize_retrieved_documents(docs_and_scores, question)
     docs_and_scores = score_retrieved_documents(docs_and_scores, question)
     if Container.debug_info:

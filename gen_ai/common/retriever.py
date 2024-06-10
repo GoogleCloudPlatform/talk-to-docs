@@ -24,7 +24,7 @@ from langchain.chains import LLMChain
 from langchain.schema import Document
 from langchain_community.vectorstores.chroma import Chroma
 
-from gen_ai.common.document_retriever import DocumentRetrieverProvider
+from gen_ai.common.providers import DocumentRetrieverProvider
 from gen_ai.common.ioc_container import Container
 from gen_ai.common.react_utils import summarize_and_score_documents
 

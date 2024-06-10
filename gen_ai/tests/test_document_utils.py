@@ -75,7 +75,7 @@ def test_build_doc_title():
     assert doc_title == "1 Section 1 Doc 1 Policy 1 "
 
 
-def test_generate_contexts_from_docs_uhg_case():
+def test_generate_contexts_from_docs_custom_case_1():
     """Tests the generation of context strings from a list of documents based on a given query state.
 
     Verifies that the 'generate_contexts_from_docs' function properly creates context strings for
@@ -111,7 +111,7 @@ def test_generate_contexts_from_docs_uhg_case():
     assert query_state.used_articles_with_scores == [("Section 1 Context: 1", 0.9)]
 
 
-def test_generate_contexts_from_docs_factset_case():
+def test_generate_contexts_from_docs_custom_case_2():
     """Tests the generation of context strings from a list of documents based without any query_state.
 
     Verifies that the 'generate_contexts_from_docs' function properly creates context strings for

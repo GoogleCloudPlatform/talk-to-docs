@@ -44,9 +44,11 @@ from langchain_community.vectorstores.chroma import Chroma
 import gen_ai.common.common as common
 from gen_ai.common.embeddings_provider import EmbeddingsProvider
 from gen_ai.common.exponential_retry import LLMExponentialRetryWrapper
-from gen_ai.common.storage import UhgStorage
+from gen_ai.common.storage import DefaultStorage
 from gen_ai.common.vector_provider import VectorStrategy, VectorStrategyProvider
-from gen_ai.constants import LLM_YAML_FILE, MEMORY_STORE_HOST
+
+
+LLM_YAML_FILE = "gen_ai/llm.yaml"
 
 
 def create_bq_client(project_id: str | None = None) -> bigquery.Client | None:
@@ -122,15 +124,21 @@ def provide_vector_indices(regenerate: bool = False) -> Chroma:
     embeddings_name = config.get("embeddings_name")
     embeddings_model_name = config.get("embeddings_model_name")
     vector_name = config.get("vector_name")
+    dataset_name = config.get("dataset_name")
+    processed_files_dir = config.get("processed_files_dir").format(dataset_name=dataset_name)
+    vectore_store_path = config.get("vector_store_path")
 
     embeddings_provider = EmbeddingsProvider(embeddings_name, embeddings_model_name)
     embeddings: Embeddings = embeddings_provider()
 
     vector_strategy_provider = VectorStrategyProvider(vector_name)
-    vector_strategy: VectorStrategy = vector_strategy_provider(storage_interface=UhgStorage())
+    vector_strategy: VectorStrategy = vector_strategy_provider(
+        storage_interface=DefaultStorage(),
+        vectore_store_path=vectore_store_path
+    )
 
     local_vector_indices = {}
-    return vector_strategy.get_vector_indices(regenerate, embeddings, local_vector_indices)
+    return vector_strategy.get_vector_indices(regenerate, embeddings, local_vector_indices, processed_files_dir)
 
 
 def provide_logger() -> Logger:
@@ -152,13 +160,15 @@ def provide_redis() -> redis.Redis:
     """
     Provides a Redis database connection using predefined settings.
 
-    This function initializes and returns a connection to a Redis database specified by the MEMORY_STORE_HOST constant.
+    This function initializes and returns a connection to a Redis database specified by the memory_store_ip constant.
     It sets up the connection with the default port and database index.
 
     Returns:
         redis.Redis: A Redis client instance connected to the specified Redis server.
     """
-    redis_db = redis.Redis(host=MEMORY_STORE_HOST, port=6379, db=0, decode_responses=True)
+    config = common.load_yaml(LLM_YAML_FILE)
+    memory_store_ip = config.get("memory_store_ip")
+    redis_db = redis.Redis(host=memory_store_ip, port=6379, db=0, decode_responses=True)
     return redis_db
 
 

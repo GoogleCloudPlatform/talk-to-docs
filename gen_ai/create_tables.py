@@ -17,8 +17,8 @@ and whether to recreate the dataset or tables. This allows for easy integration 
 and batch processing environments.
 
 Example usage:
-    python create_tables.py 'uhg' --recreate_table
-    This example command would create or recreate tables in the 'uhg' dataset.
+    python create_tables.py 'dataset_name' --recreate_table
+    This example command would create or recreate tables in the 'dataset_name' dataset.
 
 Attributes:
     schema_gt (list): Schema for the ground truth table.
@@ -112,7 +112,7 @@ schema_experiment = [
 ]
 
 if __name__ == "__main__":
-    # example usage: python create_tables.py 'uhg' --recreate_table
+    # example usage: python create_tables.py 'dataset_name' --recreate_table
     parser = argparse.ArgumentParser(description="Create BigQuery tables.")
     parser.add_argument("--recreate_dataset", action="store_true", help="Flag to recreate the dataset")
     parser.add_argument("--recreate_table", action="store_true", help="Flag to recreate the tables")

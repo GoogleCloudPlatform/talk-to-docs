@@ -28,8 +28,6 @@ from langchain.vectorstores import Chroma
 from gen_ai.common.common import default_extract_data
 from gen_ai.common.inverted_index import InvertedIndex
 from gen_ai.common.storage import Storage
-from gen_ai.constants import PROCESSED_FILES_DIR, VECTOR_STORE
-
 
 @dataclass
 class DeployedEndpoint:
@@ -91,13 +89,16 @@ class VectorStrategy(ABC):
         self.storage_interface = storage_interface
 
     @abstractmethod
-    def get_vector_indices(self, regenerate: bool, embeddings: Embeddings, vector_indices: dict[str, str]):
+    def get_vector_indices(
+        self, regenerate: bool, embeddings: Embeddings, vector_indices: dict[str, str], processed_files_dir: str
+    ):
         """Retrieves or creates vector indices based on the provided configuration.
 
         Args:
             regenerate (bool): If True, forces index regeneration.
             embeddings (Embeddings): The embedding model to use for generating vector representations.
             vector_indices (dict[str, str]): Existing vector indices (if any).
+            processed_files_dir (str): directory where files are stored
 
         Returns:
             dict[str, str]: A dictionary mapping plan names to their corresponding vector indices.
@@ -193,11 +194,13 @@ class VectorStrategyProvider:
 class ChromaVectorStrategy(VectorStrategy):
     """Concrete implementation of VectorStrategy for using Chroma as the vector store."""
 
-    def __init__(self, storage_interface: Storage) -> None:
+    def __init__(self, storage_interface: Storage, vectore_store_path: str) -> None:
         super().__init__(storage_interface)
-        self.vectore_store_path = f"{VECTOR_STORE}_chroma"
+        self.vectore_store_path = f"{vectore_store_path}_chroma"
 
-    def get_vector_indices(self, regenerate: bool, embeddings: Embeddings, vector_indices: dict[str, str]):
+    def get_vector_indices(
+            self, regenerate: bool, embeddings: Embeddings, vector_indices: dict[str, str], processed_files_dir: str
+    ):
         if not os.path.exists(self.vectore_store_path) or regenerate:
             if os.path.exists(self.vectore_store_path):
                 try:
@@ -205,7 +208,7 @@ class ChromaVectorStrategy(VectorStrategy):
                 except OSError as _:
                     os.removedirs(self.vectore_store_path)
 
-            docs = self.storage_interface.process_directory(PROCESSED_FILES_DIR, default_extract_data)
+            docs = self.storage_interface.process_directory(processed_files_dir, default_extract_data)
             plan_store = Chroma.from_documents(docs, embeddings, persist_directory=self.vectore_store_path)
             plan_store.persist()
             vector_indices = plan_store
@@ -223,11 +226,11 @@ class VertexAIVectorStrategy(VectorStrategy):
     ARTICLE_INDEX = "article_index"
     ARTICLE_INDEX_ENDPOINT = "article_index_endpoint"
 
-    def __init__(self, storage_interface: Storage) -> None:
+    def __init__(self, storage_interface: Storage, vectore_store_path: str) -> None:
         super().__init__(storage_interface)
-        self.vectore_store_path = f"{VECTOR_STORE}_vertexai"
+        self.vectore_store_path = f"{vectore_store_path}_vertexai"
 
-    def __create(self, embeddings: Embeddings):
+    def __create(self, embeddings: Embeddings, processed_files_dir: str):
         if not os.path.exists(self.vectore_store_path):
             print("Creating the directory...")
             os.makedirs(self.vectore_store_path)
@@ -236,7 +239,7 @@ class VertexAIVectorStrategy(VectorStrategy):
             shutil.rmtree(self.vectore_store_path, ignore_errors=True)
             os.makedirs(self.vectore_store_path)
 
-        docs = self.storage_interface.process_directory(PROCESSED_FILES_DIR, default_extract_data)
+        docs = self.storage_interface.process_directory(processed_files_dir, default_extract_data)
         all_jsons = {}
         for plan, documents in docs.items():
             store_path = os.path.join(self.vectore_store_path, plan)
@@ -336,16 +339,18 @@ class VertexAIVectorStrategy(VectorStrategy):
                 deployed_endpoints.append(deployed_endpoint)
         return deployed_endpoints
 
-    def get_vector_indices(self, regenerate: bool, embeddings: Embeddings, vector_indices: dict[str, str]):
+    def get_vector_indices(
+            self, regenerate: bool, embeddings: Embeddings, vector_indices: dict[str, str], processed_files_dir: str
+            ):
         aiplatform.init()
         if not os.path.exists(self.vectore_store_path):
-            all_jsons = self.__create(embeddings)
+            all_jsons = self.__create(embeddings, processed_files_dir)
             bucket_json_names = self.__copy(all_jsons)
             deployed_endpoints = self.__deploy(bucket_json_names)
         else:
             deployed_endpoints = self.get_endpoints()
 
-        docs = self.storage_interface.process_directory(PROCESSED_FILES_DIR, default_extract_data)
+        docs = self.storage_interface.process_directory(processed_files_dir, default_extract_data)
         doc_mapping = InvertedIndex().build_map(docs)
 
         for deployed_endpoint in deployed_endpoints:

@@ -10,7 +10,7 @@ import re
 from typing import Any
 
 from gen_ai.extraction_pipeline.document_extractors.base_extractor import BaseExtractor
-from gen_ai.extraction_pipeline.document_extractors.html_extractor import UhgHtmlExtractor
+from gen_ai.extraction_pipeline.document_extractors.html_extractor import CustomHtmlExtractor
 
 
 class DefaultJsonExtractor:
@@ -78,8 +78,8 @@ class DefaultJsonMetadataCreator:
         return metadata
 
 
-class UhgKcJsonMetadataCreator(DefaultJsonMetadataCreator):
-    """Metadata creator from json class customly created for UHG-KC use case.
+class CustomKcJsonMetadataCreator(DefaultJsonMetadataCreator):
+    """Metadata creator from json class customly created for Custom-KC use case.
 
     Provides a basic metadata structure including the filename, policy name,
     title, etc.
@@ -159,8 +159,8 @@ class UhgKcJsonMetadataCreator(DefaultJsonMetadataCreator):
         return metadata
 
 
-class UhgBpJsonMetadataCreator(DefaultJsonMetadataCreator):
-    """Metadata creator from json class customly created for UHG-Benefits360 use case.
+class CustomBpJsonMetadataCreator(DefaultJsonMetadataCreator):
+    """Metadata creator from json class customly created for Custom-B360 use case.
 
     Provides a basic metadata structure including the filename, policy name,
     title, etc.
@@ -176,7 +176,7 @@ class UhgBpJsonMetadataCreator(DefaultJsonMetadataCreator):
     """
 
     def create_metadata(self) -> dict[str, str]:
-        """Method that generates a dictionary of metadata for UHG B360, extracted from the json file.
+        """Method that generates a dictionary of metadata for Custom B360, extracted from the json file.
 
         Returns:
             dict[str, str]: A dictionary containing metadata keys and their
@@ -244,14 +244,14 @@ class DefaultJsonChunker:
         return {("", key): value for key, value in self.data.items()}
 
 
-class UhgKcJsonChunker(DefaultJsonChunker):
-    """Extracts text content from UHG Knowledge Center JSON data and creates a single chunk.
+class CustomKcJsonChunker(DefaultJsonChunker):
+    """Extracts text content from Custom KC JSON data and creates a single chunk.
 
     Inherits from the DefaultJsonChunker class.
     """
 
     def chunk_the_document(self) -> dict[tuple[str, str], str]:
-        """Extracts and processes text from a UHG Knowledge Center JSON document.
+        """Extracts and processes text from a Custom KC JSON document.
 
         Returns:
             dict[tuple[str, str], str]: A dictionary containing a single chunk.
@@ -265,7 +265,7 @@ class UhgKcJsonChunker(DefaultJsonChunker):
         raw_text = self.data.get("article")
         if not raw_text:
             raise TypeError("Wrong type of Knowledge Center json data")
-        processed_text = UhgHtmlExtractor.extract_text_from_html(raw_text)
+        processed_text = CustomHtmlExtractor.extract_text_from_html(raw_text)
         section_name = (
             self.data["metadata"]["structData"].get("name", "").strip()
         )
@@ -274,8 +274,8 @@ class UhgKcJsonChunker(DefaultJsonChunker):
         return output_data
 
 
-class UhgBpJsonChunker(DefaultJsonChunker):
-    """Parses UHG Benefit Plan JSON data and creates text chunks organized by benefit.
+class CustomBpJsonChunker(DefaultJsonChunker):
+    """Parses Custom B360 JSON data and creates text chunks organized by benefit.
 
     Inherits from the DefaultJsonChunker class.
     """
@@ -300,15 +300,15 @@ class UhgBpJsonChunker(DefaultJsonChunker):
 
         Returns:
             str: The retrieved value. If the value contains HTML tags,
-                 it is processed using UhgHtmlExtractor.extract_text_from_html.
+                 it is processed using CustomHtmlExtractor.extract_text_from_html.
         """
         value = item.get(key, "")
         if value and self.check_html_tags(value):
-            value = UhgHtmlExtractor.extract_text_from_html(value)
+            value = CustomHtmlExtractor.extract_text_from_html(value)
         return value
 
     def chunk_the_document(self) -> dict[tuple[str, str], str]:
-        """Creates text chunks from a UHG Benefit Plan JSON document.
+        """Creates text chunks from a Custom B360 JSON document.
 
         Returns:
             dict[tuple[str, str], str]: A dictionary where keys are tuples of
@@ -367,14 +367,14 @@ class UhgBpJsonChunker(DefaultJsonChunker):
 
 METADATA_CREATOR_MAP = {
     "default": DefaultJsonMetadataCreator,
-    "kc": UhgKcJsonMetadataCreator,
-    "b360": UhgBpJsonMetadataCreator,
+    "kc": CustomKcJsonMetadataCreator,
+    "b360": CustomBpJsonMetadataCreator,
 }
 
 CHUNKER_MAP = {
     "default": DefaultJsonChunker,
-    "kc": UhgKcJsonChunker,
-    "b360": UhgBpJsonChunker,
+    "kc": CustomKcJsonChunker,
+    "b360": CustomBpJsonChunker,
 }
 
 

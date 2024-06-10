@@ -16,8 +16,9 @@ import subprocess
 
 import click
 from gen_ai.common import common
-from gen_ai.constants import LLM_YAML_FILE
 
+
+LLM_YAML_FILE = "gen_ai/llm.yaml"
 
 def create_directory(directory: str):
     """Creates a directory with specified permissions.

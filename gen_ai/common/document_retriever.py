@@ -9,14 +9,11 @@ vector store based on semantic similarity to a provided query, potentially filte
 additional metadata criteria. It leverages similarity search and max marginal relevance
 techniques to find and rank documents according to their relevance.
 """
-
-import copy
 from abc import ABC, abstractmethod
-from typing import Any
-
+import copy
 from langchain_community.vectorstores.chroma import Chroma
 from langchain_core.documents.base import Document
-
+from typing import Any
 import gen_ai.common.common as common
 from gen_ai.common.measure_utils import trace_on
 from gen_ai.common.chroma_utils import convert_to_chroma_format
@@ -41,14 +38,6 @@ def remove_member_and_session_id(metadata: dict[str, Any]) -> dict[str, Any]:
     if "session_id" in new_metadata:
         del new_metadata["session_id"]
     return new_metadata
-
-
-class DocumentRetrieverProvider:
-    def __call__(self, name: str) -> "DocumentRetriever":
-        if name == "semantic":
-            return SemanticDocumentRetriever()
-        else:
-            raise ValueError("Not implemented document retriver")
 
 
 class DocumentRetriever(ABC):
@@ -84,7 +73,7 @@ class DocumentRetriever(ABC):
     ):
         documents = []
         for question in questions_for_search:
-            documents.extend(self.get_related_docs_from_store_uhg(store, question, metadata))
+            documents.extend(self.get_related_docs_from_store(store, question, metadata))
         documents = common.remove_duplicates(documents)
         return documents
 
@@ -104,8 +93,7 @@ class SemanticDocumentRetriever(DocumentRetriever):
             search query.
     """
 
-    @trace_on("Retrieving documents from semantic store", measure_time=True)
-    def get_related_docs_from_store(
+    def _get_related_docs_from_store(
         self, store: Chroma, questions_for_search: str, metadata: dict[str, str] | None = None
     ) -> list[Document]:
         if metadata is None:
@@ -115,12 +103,15 @@ class SemanticDocumentRetriever(DocumentRetriever):
             metadata = convert_to_chroma_format(metadata)
 
         ss_docs = store.similarity_search_with_score(query=questions_for_search, k=50, filter=metadata)
-        ss_docs = [x[0] for x in ss_docs[0:3]]
+        max_number_of_docs_retrieved = Container.config.get("max_number_of_docs_retrieved", 3)
+        ss_docs = [x[0] for x in ss_docs[0:max_number_of_docs_retrieved]]
 
         if Container.config.get("use_mmr", False):
             mmr_docs = store.max_marginal_relevance_search(
-                query=questions_for_search, k=1, lambda_mult=0.5, filter=metadata
+                query=questions_for_search, k=50, lambda_mult=0.5, filter=metadata
             )
+            max_number_of_docs_retrieved_mmr = Container.config.get("max_number_of_docs_retrieved_mmr", 3)
+            mmr_docs = mmr_docs[0:max_number_of_docs_retrieved_mmr]
         else:
             mmr_docs = []
         docs = common.remove_duplicates(ss_docs + mmr_docs)
@@ -128,24 +119,9 @@ class SemanticDocumentRetriever(DocumentRetriever):
         return docs
 
     @trace_on("Retrieving documents from semantic store", measure_time=True)
-    def get_related_docs_from_store_uhg(
+    def get_related_docs_from_store(
         self, store: Chroma, questions_for_search: str, metadata: dict[str, str] | None = None
     ) -> list[Document]:
-        # Very custom method
-        if metadata is None or "set_number" not in metadata:
-            custom_metadata = {"data_source": "kc"}
-            return self.get_related_docs_from_store(store, questions_for_search, custom_metadata)
+        return self._get_related_docs_from_store(store, questions_for_search, metadata)
 
-        b360_metadata = copy.deepcopy(metadata)
-        b360_metadata["data_source"] = "b360"
 
-        kc_metadata = copy.deepcopy(metadata)
-        kc_metadata["data_source"] = "kc"
-        if "set_number" in kc_metadata:
-            del kc_metadata["set_number"]
-        metadatas = [b360_metadata, kc_metadata]
-        docs = []
-        for metadata in metadatas:
-            docs.extend(self.get_related_docs_from_store(store, questions_for_search, metadata))
-
-        return docs

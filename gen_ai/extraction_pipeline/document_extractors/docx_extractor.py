@@ -200,7 +200,7 @@ class DocxExtractor(BaseExtractor):
         self.document = extractor.extract_document()
         self.raw_text = extractor.extract_text()
 
-        metadata_creator = UhgKcDocxMetadataCreator(
+        metadata_creator = CustomKcDocxMetadataCreator(
             self.filepath, self.document, self.raw_text
         )
         metadata = metadata_creator.create_metadata()
@@ -209,13 +209,13 @@ class DocxExtractor(BaseExtractor):
 
         document_chunker = DefaultDocxChunker(self.document, self.raw_text)
         document_chunks = document_chunker.chunk_the_document()
-        uhg_kc_chunks = (
-            UhgKcDocxChunker(self.document, self.raw_text).chunk_the_document()
+        additional_kc_chunks = (
+            CustomKcDocxChunker(self.document, self.raw_text).chunk_the_document()
             if self.docx_chunking == "combo"
             else None
         )
-        if uhg_kc_chunks:
-            document_chunks.update(uhg_kc_chunks)
+        if additional_kc_chunks:
+            document_chunks.update(additional_kc_chunks)
 
         if not document_chunks:
             return False
@@ -289,8 +289,8 @@ class DefaultDocxMetadataCreator:
         return metadata
 
 
-class UhgKcDocxMetadataCreator(DefaultDocxMetadataCreator):
-    """Metadata creator from .docx class customly created for UHG-KC use case.
+class CustomKcDocxMetadataCreator(DefaultDocxMetadataCreator):
+    """Metadata creator from .docx class customly created for Custom-KC use case.
 
     Provides a basic metadata structure including the filename, policy name,
     title, etc.
@@ -520,8 +520,8 @@ class DefaultDocxChunker:
         return output_file
 
 
-class UhgKcDocxChunker(DefaultDocxChunker):
-    """Document chunker class customly created for UHG-KC use case, that provides the structure for extracting sections and chunking .docx documents.
+class CustomKcDocxChunker(DefaultDocxChunker):
+    """Document chunker class customly created for Custom-KC use case, that provides the structure for extracting sections and chunking .docx documents.
 
     Attributes:
         document (docx.Document): The loaded Document object.
