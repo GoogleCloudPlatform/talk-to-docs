@@ -100,4 +100,4 @@ To avoid hardcoding the Memorystore Redis private IP address after it's created,
 
 ### Updating BigQuery table
 
-All the runs are logged into a dataset located in the project discovered from [Application Default Credentials](https://cloud.google.com/docs/authentication/application-default-credentials). Change the dataset name by updating the `dataset_name` variable in the `llm.yaml` file.
+All the runs are logged into a dataset located in the project discovered from [Application Default Credentials](https://cloud.google.com/docs/authentication/application-default-credentials). Change the dataset name by updating the `dataset_name` variable in the `llm.yaml` file. Optionally specify a different project for BigQuery logging by setting the `bq_project_id` variable in the `llm.yaml` file. By default, the `null` value of `bq_project_id` uses ADC to discover the environment's project.

@@ -264,19 +264,22 @@ def get_dataset_id() -> str:
     The dataset ID combines the project ID and a predefined dataset name
     (assumed to be globally defined as 'DATASET_NAME').
 
-    Determining the project ID:
+    Priority for determining the project ID:
 
-    **Google Application Default Credentials:** Use Google's default
+    1. **Variable in llm.yaml:** Looks for the 'bq_project_id' config variable.
+    2. **Google Application Default Credentials:** If the environment variable is not found, uses Google's default
     credentials mechanism.
 
     Returns:
         str: The fully constructed BigQuery dataset ID in the format 'project_id.DATASET_NAME'.
 
     Raises:
-        ValueError: If the project ID cannot be determined.
+        ValueError: If the project ID cannot be determined from either source.
     """
+    project_id = Container.config.get("bq_project_id")
     dataset_name = Container.config["dataset_name"]
-    _, project_id = google.auth.default()
+    if not project_id:
+        _, project_id = google.auth.default()
     return f"{project_id}.{dataset_name}"
 
 
