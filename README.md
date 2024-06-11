@@ -95,7 +95,7 @@ The `credentials` provider argument supplies credentials to deploy resources. It
 
 
 ### Redis private DNS hostname
-To avoid hardcoding the Memorystore Redis private IP address after it's created, the `MEMORY_STORE_HOST` constant in the `contants.py` file defines a private DNS zone hostname for the instance. Terraform will create a private DNS zone `A` record in [Cloud DNS](https://cloud.google.com/dns/docs/zones#create-private-zone) that points to the redis instance IP address. The instance allows connections from the authorized network `platform-gen-ai-network` also created by terraform.
+To avoid hardcoding the Memorystore Redis private IP address after it's created, the `memory_store_host` constant in the `llm.yaml` file defines a private DNS zone hostname for the instance. Terraform will create a private DNS zone `A` record in [Cloud DNS](https://cloud.google.com/dns/docs/zones#create-private-zone) that points to the redis instance IP address. The instance allows connections from the authorized network `platform-gen-ai-network` also created by terraform.
 
 
 ### Updating BigQuery table

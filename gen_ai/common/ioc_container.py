@@ -160,15 +160,15 @@ def provide_redis() -> redis.Redis:
     """
     Provides a Redis database connection using predefined settings.
 
-    This function initializes and returns a connection to a Redis database specified by the memory_store_ip constant.
+    This function initializes and returns a connection to a Redis database specified by the memory_store_host constant.
     It sets up the connection with the default port and database index.
 
     Returns:
         redis.Redis: A Redis client instance connected to the specified Redis server.
     """
     config = common.load_yaml(LLM_YAML_FILE)
-    memory_store_ip = config.get("memory_store_ip")
-    redis_db = redis.Redis(host=memory_store_ip, port=6379, db=0, decode_responses=True)
+    memory_store_host = config.get("memory_store_host")
+    redis_db = redis.Redis(host=memory_store_host, port=6379, db=0, decode_responses=True)
     return redis_db
 
 
