@@ -37,6 +37,7 @@ def transform_to_dictionary(base_model: BaseModel) -> dict:
 
 
 class PersonalizedData(BaseModel):
+    """A data model representing personalized member information."""
     member_id: str = ""
     policy_title: str = ""
     policy_holder_name: str = ""
@@ -52,11 +53,13 @@ class PersonalizedData(BaseModel):
 
 
 class ItemInput(BaseModel):
+    """A data model structuring input for question-answering requests."""
     question: str
     member_context_full: PersonalizedData
 
 
 class ResponseInput(BaseModel):
+    """A data model encapsulating data for feedback on responses."""
     question: str
     answer: str
     response_id: str
@@ -64,15 +67,18 @@ class ResponseInput(BaseModel):
 
 
 class ResponseOutput(BaseModel):
+    """A data model for handling feedback interactions."""
     success: bool
     response_id: str
 
 
 class ResetInput(BaseModel):
+    """A data model for handling reset interactions."""
     person_info: PersonalizedData
 
 
 class ResetOutput(BaseModel):
+    """A data model representing the success status of a reset operation."""
     success: bool
 
 
