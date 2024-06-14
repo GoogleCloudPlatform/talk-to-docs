@@ -1,13 +1,13 @@
 # This file defines the LLM prompts and configuration parameters used
 # to converse with a user.
 # Project and User specific configuration
-bq_project_id: dauren-genai-bb # change for the user's project id
+bq_project_id: null # optionally specify a different project (not discovered by ADC) for BigQuery logging
 dataset_name: dataset_name # change for new project
 gcs_source_bucket: gs://bucket location # change for new project
 terraform_credentials: terraform-service-account-credentials.json # change for the user
 terraform_instance_name: talk-to-docs-instance
 terraform_redis_name: talk-to-docs-redis-instance
-memory_store_ip: 10.151.191.44 # change to your redis IP
+memory_store_host: redis.t2xservice.internal # private DNS zone created by terraform
 customer_name: Customer # change for new project (gradio)
 customer_logo: https://www.gstatic.com/pantheon/images/welcome/supercloud.svg # change for new project
 processed_files_dir: /mnt/resources/{dataset_name}/main_folder

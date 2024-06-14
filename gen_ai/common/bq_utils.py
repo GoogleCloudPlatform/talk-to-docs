@@ -276,7 +276,7 @@ def get_dataset_id() -> str:
     Raises:
         ValueError: If the project ID cannot be determined from either source.
     """
-    project_id = Container.config["bq_project_id"]
+    project_id = Container.config.get("bq_project_id")
     dataset_name = Container.config["dataset_name"]
     if not project_id:
         _, project_id = google.auth.default()

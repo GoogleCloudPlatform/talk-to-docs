@@ -86,6 +86,23 @@ python gen_ai/copy_resources.py
 ```
 
 
+### Deploying terraform resources
+You must declare the project ID where you want to deploy Compute Engine, BigQuery, and Memorystore Redis resources. Pass the value to the `project_id` root module [input variable](https://developer.hashicorp.com/terraform/language/values/variables#assigning-values-to-root-module-variables) using a `.tfvars` file, the `-var` command line argument, or the `TF_VAR_project_id` environment variable.
+
+For example:
+```hcl
+terraform plan -var="project_id=my-project-id"
+```
+
+The variable sets the default project in the `google` provider block. The provider also uses the `region` and `zone` variables to set defaults for resources.
+
+The `credentials` provider argument supplies credentials to deploy resources. It reads the path to a local service account key file from the `llm.yaml` file.
+
+
+### Redis private DNS hostname
+To avoid hardcoding the Memorystore Redis private IP address after it's created, the `memory_store_host` constant in the `llm.yaml` file defines a private DNS zone hostname for the instance. Terraform will create a private DNS zone `A` record in [Cloud DNS](https://cloud.google.com/dns/docs/zones#create-private-zone) that points to the redis instance IP address. The instance allows connections from the authorized network `platform-gen-ai-network` also created by terraform.
+
+
 ### Updating BigQuery table
 
-It is currently set up that all the runs are logged into "dataset_name" dataset in "chertushkin-genai-sa" project. To change the project id - change `bq_project_id` field of `llm.yaml` file. If you receive an error in logging, check if the service account is added to BigQuery IAM of "chertushkin-genai-sa" project. Or whatever the project you specified in the config.
+All the runs are logged into a dataset located in the project discovered from [Application Default Credentials](https://cloud.google.com/docs/authentication/application-default-credentials). Change the dataset name by updating the `dataset_name` variable in the `llm.yaml` file. Optionally specify a different project for BigQuery logging by setting the `bq_project_id` variable in the `llm.yaml` file. By default, the `null` value of `bq_project_id` uses ADC to discover the environment's project.
