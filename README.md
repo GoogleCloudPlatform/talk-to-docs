@@ -89,6 +89,11 @@ python gen_ai/copy_resources.py
 ### Deploying terraform resources
 You must declare the project ID where you want to deploy Compute Engine, BigQuery, and Memorystore Redis resources. Pass the value to the `project_id` root module [input variable](https://developer.hashicorp.com/terraform/language/values/variables#assigning-values-to-root-module-variables) using a `.tfvars` file, the `-var` command line argument, or the `TF_VAR_project_id` environment variable.
 
+For example:
+```hcl
+terraform plan -var="project_id=my-project-id"
+```
+
 The variable sets the default project in the `google` provider block. The provider also uses the `region` and `zone` variables to set defaults for resources.
 
 The `credentials` provider argument supplies credentials to deploy resources. It reads the path to a local service account key file from the `llm.yaml` file.
