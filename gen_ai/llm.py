@@ -144,7 +144,7 @@ def perform_main_llm_call(
             "additional_information_to_retrieve": "",
         },
         0,
-        False
+        False,
     )
     try:
         output_raw = output_raw.replace("`json", "").replace("`", "")
@@ -377,23 +377,25 @@ def respond(conversation: Conversation, member_info: dict) -> Conversation:
         conversation = resolve_and_enrich(conversation)
 
     policy_number = member_info.get("policy_number") or "generic"
-    if  policy_number not in Container.config.get("existing_policies",{}):
+    if policy_number not in Container.config.get("existing_policies", {}):
         conversation.exchanges[-1].answer = "Incorrect policy number is provided."
         return conversation
-    
-    if (policy_number != "generic" and
-        member_info.get("set_number","") not in Container.config["existing_policies"].get(policy_number,{})):
+
+    if policy_number != "generic" and member_info.get("set_number", "") not in Container.config[
+        "existing_policies"
+    ].get(policy_number, {}):
         conversation.exchanges[-1].answer = "Incorrect set number is provided."
         return conversation
-    
+
     conversation, log_snapshots = generate_response_react(conversation)
 
     if statefullness_enabled:
         serialize_response(conversation)
-    
+
     Container.logging_bq_executor().submit(load_data_to_bq, conversation, log_snapshots)
 
     return conversation
+
 
 def respond_api(question: str, member_context_full: PersonalizedData | dict[str, str]) -> Conversation:
     """
@@ -424,4 +426,3 @@ def respond_api(question: str, member_context_full: PersonalizedData | dict[str,
     conversation = Conversation(exchanges=[query_state])
     conversation = respond(conversation, member_context_full)
     return conversation
-
