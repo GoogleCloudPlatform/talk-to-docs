@@ -1,7 +1,7 @@
 # This file defines the LLM prompts and configuration parameters used
 # to converse with a user.
 # Project and User specific configuration
-bq_project_id: null # change for the user's project id
+bq_project_id: chertushkin-genai-sa # change for the user's project id
 dataset_name: uhg # change for new project
 gcs_source_bucket: gs://uhg_data/extractions20240715 # change for new project
 terraform_credentials: terraform-service-account-credentials.json # change for the user
@@ -20,14 +20,14 @@ model_name: gemini-1.5-flash-001
 scoring_model_name: gemini-1.5-flash-001
 embeddings_name: vertexai
 embeddings_model_name: textembedding-gecko@003
-vector_name: vais
+vector_name: chroma
 document_retriever: custom # custom is for custom use case
 vais_staging_bucket: null
 vais_data_store: null # replace with data store ID to be created in Terraform and used by T2X
 vais_engine_id: null # replace with search engine ID to be created in Terraform and used by T2X
 vais_location: us # one of us, eu, global
 use_prev_and_next_pieces: 1 # integer between 0 and 3
-api_mode: stateful
+api_mode: stateless
 personalization: true
 temperature: 0.5
 max_output_tokens: 4000
