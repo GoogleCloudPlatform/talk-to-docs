@@ -331,7 +331,7 @@ class BigQueryConverter:
             "relevance_score": [],
             "additional_question": [],
             "plan_and_summaries": [],
-            "original_question": []
+            "original_question": [],
         }
         max_round = len(log_snapshots) - 1
         system_state_id = Container.system_state_id or log_system_status(session_id)
@@ -340,13 +340,21 @@ class BigQueryConverter:
             response = query_state.answer or ""
             retrieved_documents_so_far = json.dumps(
                 [
-                    {"original_filepath": x["metadata"].get("original_filepath")}
+                    {
+                        "original_filepath": x["metadata"].get("original_filepath"),
+                        "doc_identifier": x["metadata"].get("doc_identifier"),
+                        "section_name": x["metadata"].get("section_name"),
+                    }
                     for x in log_snapshot["pre_filtered_docs"]
                 ]
             )
             post_filtered_documents_so_far = json.dumps(
                 [
-                    {"original_filepath": x["metadata"].get("original_filepath")}
+                    {
+                        "original_filepath": x["metadata"].get("original_filepath"),
+                        "doc_identifier": x["metadata"].get("doc_identifier"),
+                        "section_name": x["metadata"].get("section_name"),
+                    }
                     for x in log_snapshot["post_filtered_docs"]
                 ]
             )

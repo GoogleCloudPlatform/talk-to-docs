@@ -51,7 +51,7 @@ def extract_doc_attributes(docs_and_scores: list[Document]) -> list[tuple[str]]:
     Returns:
         A list of tuples where each tuple contains attributes from a Document.
     """
-    return default_extract_doc_attributes(docs_and_scores)
+    return custom_extract_doc_attributes(docs_and_scores)
 
 
 def fill_query_state_with_doc_attributes(query_state: QueryState, post_filtered_docs: list[Document]) -> QueryState:
@@ -65,7 +65,7 @@ def fill_query_state_with_doc_attributes(query_state: QueryState, post_filtered_
     Returns:
         The modified QueryState object, with custom_fields updated based on document metadata.
     """
-    return default_fill_query_state_with_doc_attributes(query_state, post_filtered_docs)
+    return custom_fill_query_state_with_doc_attributes(query_state, post_filtered_docs)
 
 
 def default_fill_query_state_with_doc_attributes(

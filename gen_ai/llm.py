@@ -28,6 +28,7 @@ Dependencies:
 import uuid
 from timeit import default_timer
 from typing import Any
+from ast import literal_eval
 
 import json5
 from dependency_injector.wiring import inject
@@ -315,11 +316,15 @@ def generate_response_react(conversation: Conversation) -> tuple[Conversation, l
         if not query_state.additional_information_to_retrieve:
             break
 
-        if confidence >= 5:
+        if confidence >= 95:
             break
 
     conversation.round_numder = round_number
     query_state.answer = output["answer"]
+    if isinstance(output["context_used"], str):
+        query_state.relevant_context = literal_eval(output["context_used"])
+    if isinstance(output["context_used"], list):
+        query_state.relevant_context = output["context_used"]
     query_state.relevant_context = output["context_used"]
     query_state.all_sections_needed = [x[0] for x in query_state.used_articles_with_scores]
     query_state.used_articles_with_scores = None
@@ -352,8 +357,14 @@ def respond(conversation: Conversation, member_info: dict) -> Conversation:
     conversation.member_info = member_info
     if conversation.member_info and "set_number" in conversation.member_info:
         conversation.member_info["set_number"] = conversation.member_info["set_number"].lower()
+        # replace "acis001" -> "001acis"
+        if "acis" == conversation.member_info["set_number"][0:4]:
+            conversation.member_info["set_number"] = (
+                conversation.member_info["set_number"][4:] + conversation.member_info["set_number"][0:4]
+            )
     if conversation.member_info and "session_id" in conversation.member_info:
-        conversation.session_id = conversation.member_info["session_id"]
+        session_id = f"{conversation.member_info['session_id']}---{str(uuid.uuid4())}"
+        conversation.session_id = session_id
     else:
         conversation.session_id = str(uuid.uuid4())
 
@@ -365,15 +376,24 @@ def respond(conversation: Conversation, member_info: dict) -> Conversation:
             raise ValueError("Member id is not provided for Stateful API and Multi-Turn")
         conversation = resolve_and_enrich(conversation)
 
+    policy_number = member_info.get("policy_number") or "generic"
+    if  policy_number not in Container.config.get("existing_policies",{}):
+        conversation.exchanges[-1].answer = "Incorrect policy number is provided."
+        return conversation
+    
+    if (policy_number != "generic" and
+        member_info.get("set_number","") not in Container.config["existing_policies"].get(policy_number,{})):
+        conversation.exchanges[-1].answer = "Incorrect set number is provided."
+        return conversation
+    
     conversation, log_snapshots = generate_response_react(conversation)
 
     if statefullness_enabled:
         serialize_response(conversation)
-
+    
     Container.logging_bq_executor().submit(load_data_to_bq, conversation, log_snapshots)
 
     return conversation
-
 
 def respond_api(question: str, member_context_full: PersonalizedData | dict[str, str]) -> Conversation:
     """

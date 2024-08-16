@@ -35,7 +35,8 @@ def generate_query_state_key(personalized_data: dict[str, str], unique_identifie
     """
     the_key = f"query_state:{personalized_data['member_id']}"
     if "session_id" in personalized_data and personalized_data["session_id"]:
-        the_key = f"{the_key}:{personalized_data['session_id']}"
+        s_id = personalized_data['session_id'].split("---")[0]
+        the_key = f"{the_key}:{s_id}"
     else:
         the_key = f"{the_key}:{DEFAULT_SESSION_ID}"
     if unique_identifier:
