@@ -56,8 +56,8 @@ resource "google_storage_bucket" "default_backend_bucket" {
 
 
   website {
-    main_page_suffix = "public/index.html"
-    not_found_page   = "public/404.html"
+    main_page_suffix = "site/index.html"
+    not_found_page   = "site/404.html"
   }
 
   force_destroy = true
@@ -65,15 +65,20 @@ resource "google_storage_bucket" "default_backend_bucket" {
 
 resource "google_storage_managed_folder" "folder" {
   bucket = google_storage_bucket.default_backend_bucket.name
-  name   = "public/"
+  name   = "site/"
 }
 
-resource "google_storage_managed_folder_iam_member" "public_viewer" {
-  bucket         = google_storage_managed_folder.folder.bucket
-  managed_folder = google_storage_managed_folder.folder.name
-  role           = "roles/storage.objectViewer"
-  member         = "allUsers"
-}
+# # Create a public viewer IAM member for the default backend bucket managed folder.
+# # Projects enforcing policy constraints allowing IAM members only from
+# # authorized domains will fail to create this resource.
+# # Omit this resource to prevent the constraint from failing the deployment.
+# # Requests reaching the default bucket will return a 403 error in that case.
+# resource "google_storage_managed_folder_iam_member" "public_viewer" {
+#   bucket         = google_storage_managed_folder.folder.bucket
+#   managed_folder = google_storage_managed_folder.folder.name
+#   role           = "roles/storage.objectViewer"
+#   member         = "allUsers"
+# }
 
 resource "google_storage_bucket_object" "index" {
   name         = "${google_storage_managed_folder.folder.name}index.html"

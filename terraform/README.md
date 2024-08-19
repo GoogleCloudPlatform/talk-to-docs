@@ -384,7 +384,7 @@ gcloud storage cp -r "gs://$SOURCE_BUCKET/$DATASET_NAME/*" "gs://$STAGING_BUCKET
 - Terraform provisions the `t2x-doc-ingestion-workflow`.
 - It requires a single input parameter, `dataset_name`, which is the folder name in the staging bucket containing the document extractions.
     - i.e. `gs://t2x-staging-my-project-id/source-data/extractions20240715` -> `"dataset_name": "extractions20240715"`.
-    - The `dataset_name` corresponds to the `$EXTRACTION_PATH` value set in the [Stage document extractions](#7-stage-document-extractions) step.
+    - The `dataset_name` corresponds to the `$DATASET_NAME` value set in the [Stage document extractions](#7-stage-document-extractions) step.
 - The workflow creates a metadata file in the staging bucket and imports the document extractions to the Discovery Engine Data Store.
 - The metadata file gests created in the `data-store-metadata` top-level folder in a subfolder sharing the name of the extractions dataset.
 - In this example, the dataset name is `extractions20240715` and the metadata file is `metadata.jsonl`, already created in the staging bucket.
