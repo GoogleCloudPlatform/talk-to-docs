@@ -1,7 +1,7 @@
 # This file defines the LLM prompts and configuration parameters used
 # to converse with a user.
 # Project and User specific configuration
-bq_project_id: mkamatala-genai-bb # change for the user's project id
+bq_project_id: null # change for the user's project id
 dataset_name: uhg # change for new project
 gcs_source_bucket: gs://uhg_data/extractions20240819
 #gs://uhg_data/extractions20240715 # change for new project
