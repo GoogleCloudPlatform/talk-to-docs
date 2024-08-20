@@ -10,14 +10,17 @@ import os
 
 from gen_ai.extraction_pipeline.document_extractors.docx_extractor import DocxExtractor
 from gen_ai.extraction_pipeline.document_extractors.json_extractor import JsonExtractor
-# from gen_ai.extraction_pipeline.document_extractors.pdf_extractor import PdfExtractor
+from gen_ai.extraction_pipeline.document_extractors.pdf_extractor import PdfExtractor
 from gen_ai.extraction_pipeline.document_extractors.xml_extractor import XmlExtractor
+from gen_ai.extraction_pipeline.document_extractors.html_extractor import HtmlExtractor
 
 EXTRACTORS_MAP = {
     ".docx": DocxExtractor,
     ".xml": XmlExtractor,
     ".json": JsonExtractor,
-    # ".pdf": PdfExtractor,
+    ".pdf": PdfExtractor,
+    ".html": HtmlExtractor,
+    ".att_ni_xml": XmlExtractor
 }
 
 
