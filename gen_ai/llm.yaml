@@ -27,7 +27,7 @@ vais_data_store: null # replace with data store ID to be created in Terraform an
 vais_engine_id: null # replace with search engine ID to be created in Terraform and used by T2X
 vais_location: us # one of us, eu, global
 use_prev_and_next_pieces: 1 # integer between 0 and 3
-api_mode: stateless
+api_mode: stateful
 personalization: true
 temperature: 0.5
 max_output_tokens: 4000
