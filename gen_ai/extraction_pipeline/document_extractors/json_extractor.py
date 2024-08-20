@@ -4,13 +4,16 @@ And organizing the extracted data into separate files for structured document
 processing.
 """
 
+import datetime
 import json
 import os
 import re
 from typing import Any
 
 from gen_ai.extraction_pipeline.document_extractors.base_extractor import BaseExtractor
-from gen_ai.extraction_pipeline.document_extractors.html_extractor import CustomHtmlExtractor
+from gen_ai.extraction_pipeline.document_extractors.docx_extractor import DefaultDocxExtractor, DefaultDocxChunker, CustomKcDocxChunker
+from gen_ai.extraction_pipeline.document_extractors.html_extractor import DefaultHtmlIngestor
+from gen_ai.extraction_pipeline.document_extractors.pdf_extractor import DefaultPdfExtractor
 
 
 class DefaultJsonExtractor:
@@ -33,7 +36,7 @@ class DefaultJsonExtractor:
             dict: The deserialized JSON data as a Python dictionary.
         """
         try:
-            with open(self.filepath, "r") as f:
+            with open(self.filepath, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 return data
         except json.JSONDecodeError as e:
@@ -71,15 +74,15 @@ class DefaultJsonMetadataCreator:
             "original_filepath": "",
             "filename": "",
         }
-        metadata["original_filepath"] = self.filepath
+        metadata["original_filepath"] = os.path.basename(self.filepath)
         filename = os.path.basename(self.filepath)
         filename = os.path.splitext(filename)[0]
         metadata["filename"] = filename
         return metadata
 
 
-class CustomKcJsonMetadataCreator(DefaultJsonMetadataCreator):
-    """Metadata creator from json class customly created for Custom-KC use case.
+class CustomJsonMetadataCreatorOne(DefaultJsonMetadataCreator):
+    """Metadata creator from json class customly created for Custom KC use case.
 
     Provides a basic metadata structure including the filename, policy name,
     title, etc.
@@ -98,10 +101,10 @@ class CustomKcJsonMetadataCreator(DefaultJsonMetadataCreator):
         self.filepath = filepath
         self.data = data.get("metadata")
         if not self.data:
-            raise TypeError("Wrong type of Knowledge Center json data")
+            raise TypeError("Wrong type of KC json data")
 
     def create_metadata(self) -> dict[str, str]:
-        """Generates a metadata dictionary from a Knowledge Center (KC) JSON file.
+        """Generates a metadata dictionary from a KC JSON file.
 
         Checks for a valid content type ("text/html") and extracts relevant
         metadata
@@ -119,10 +122,6 @@ class CustomKcJsonMetadataCreator(DefaultJsonMetadataCreator):
             TypeError: If the JSON data does not have the expected "text/html"
             mimeType.
         """
-        # Check content type for "article". Need to decide if necessary
-        mime_type = self.data["content"].get("mimeType")
-        if not mime_type or "text/html" not in mime_type:
-            raise TypeError("Wrong type of Knowledge Center json data")
         metadata = {
             "data_source": "kc",
             "policy_number": "",
@@ -143,6 +142,7 @@ class CustomKcJsonMetadataCreator(DefaultJsonMetadataCreator):
         doc_identifier = self.data["structData"].get("doc_identifier")
         section_name = self.data["structData"].get("name")
         url = self.data["structData"].get("url")
+        policy_number = self.data["structData"].get("policy_number")
 
         metadata["doc_identifier"] = (
             doc_identifier.lower().strip() if doc_identifier else ""
@@ -151,7 +151,8 @@ class CustomKcJsonMetadataCreator(DefaultJsonMetadataCreator):
             section_name.lower().strip() if section_name else ""
         )
         metadata["url"] = url if url else ""
-        metadata["original_filepath"] = self.filepath
+        metadata["policy_number"] = policy_number if policy_number else "generic"
+        metadata["original_filepath"] = os.path.basename(self.filepath)
 
         filename = os.path.basename(self.filepath)
         filename = os.path.splitext(filename)[0]
@@ -159,8 +160,8 @@ class CustomKcJsonMetadataCreator(DefaultJsonMetadataCreator):
         return metadata
 
 
-class CustomBpJsonMetadataCreator(DefaultJsonMetadataCreator):
-    """Metadata creator from json class customly created for Custom-B360 use case.
+class CustomJsonMetadataCreatorTwo(DefaultJsonMetadataCreator):
+    """Metadata creator from json class customly created for Custom B360 use case.
 
     Provides a basic metadata structure including the filename, policy name,
     title, etc.
@@ -214,7 +215,85 @@ class CustomBpJsonMetadataCreator(DefaultJsonMetadataCreator):
         metadata["set_number"] = (
             set_number.lower().strip() if set_number else ""
         )
-        metadata["original_filepath"] = self.filepath
+        metadata["original_filepath"] = os.path.basename(self.filepath)
+        metadata["filename"] = filename
+
+        return metadata
+
+
+class CustomJsonMetadataCreatorThree(DefaultJsonMetadataCreator):
+    """Metadata creator from json class customly created for Custom B360 use case.
+
+    Provides a basic metadata structure including the filename, policy name,
+    title, etc.
+
+    Args:
+        filepath (str): The absolute path to the JSON file.
+        data (dict[str, Any]): The parsed JSON data represented as a dictionary.
+
+    Attributes:
+        filepath (str): The absolute path to the JSON file.
+        data (dict[str, Any]): "metadata" field of the parsed JSON data
+          represented as a dictionary.
+    """
+
+    def create_metadata(self) -> dict[str, str]:
+        """Method that generates a dictionary of metadata for Custom B360, extracted from the json file.
+
+        Returns:
+            dict[str, str]: A dictionary containing metadata keys and their
+            corresponding values.
+        """
+        metadata = {
+            "data_source": "b360",
+            "policy_number": "",
+            "set_number": "",
+            "effective_date": "",
+            "cancellation_date": "",
+            "original_filepath": "",
+            "section_name": "",
+            "plan_name": "",
+            "policy_title": "",
+            "url": "",
+            "doc_identifier": "",
+            "category_name": "",
+            "benefit_id": "",
+            "filename": "",
+        }
+        benefit_id = self.data["BenefitPlan"].get("BenefitPlanID")
+        if benefit_id and len(benefit_id.split("_")) == 2:
+            policy_number, set_number = benefit_id.split("_")
+        else:
+            policy_number = set_number = benefit_id
+        effective_date = self.data["BenefitPlan"].get("BenefitPlanEffectiveDate")
+        if isinstance(effective_date, int):
+            effective_date = datetime.datetime.fromtimestamp(effective_date / 1e3).strftime("%m/%d/%Y")
+
+        plan_name = self.data["BenefitPlan"].get("BenefitPlanName")
+
+        filename = f"{policy_number}-{set_number}-{plan_name}"
+        filename = re.sub(r"[^\w.-]", "_", filename)
+        filename = re.sub(r"__+", "_", filename).rstrip("_")
+
+        metadata["plan_name"] = (
+            plan_name.lower().strip() if plan_name else ""
+        )
+        metadata["policy_number"] = (
+            policy_number.lower().strip() if policy_number else ""
+        )
+        metadata["set_number"] = (
+            set_number.lower().strip() if set_number else ""
+        )
+        metadata["url"] = (
+            set_number.lower().strip() if set_number else ""
+        )
+        metadata["doc_identifier"] = (
+            f"{metadata['policy_number']}_{metadata['set_number']}"
+        )
+        metadata["effective_date"] = (
+            effective_date if effective_date else ""
+        )
+        metadata["original_filepath"] = os.path.basename(self.filepath)
         metadata["filename"] = filename
 
         return metadata
@@ -244,8 +323,8 @@ class DefaultJsonChunker:
         return {("", key): value for key, value in self.data.items()}
 
 
-class CustomKcJsonChunker(DefaultJsonChunker):
-    """Extracts text content from Custom KC JSON data and creates a single chunk.
+class CustomJsonChunkerOne(DefaultJsonChunker):
+    """Extracts text content from Custom KC Center JSON data and creates a single chunk.
 
     Inherits from the DefaultJsonChunker class.
     """
@@ -262,19 +341,50 @@ class CustomKcJsonChunker(DefaultJsonChunker):
         Raises:
             TypeError: If the "article" key is not found in the JSON data.
         """
-        raw_text = self.data.get("article")
-        if not raw_text:
-            raise TypeError("Wrong type of Knowledge Center json data")
-        processed_text = CustomHtmlExtractor.extract_text_from_html(raw_text)
-        section_name = (
-            self.data["metadata"]["structData"].get("name", "").strip()
-        )
-        processed_text = f"{section_name}\n{processed_text}"
-        output_data = {("", section_name): processed_text}
+        
+        # Check content type for "article". Need to decide if necessary
+        output_data = {("", ""): ""}
+        mime_type = self.data["metadata"]["content"].get("mimeType")
+        if not mime_type:
+            raise TypeError("Wrong type of KC json data")
+        if "text/html" in mime_type:
+            raw_text = self.data.get("article")
+            if not raw_text:
+                raise TypeError("Wrong type of KC json data")
+            processed_text = DefaultHtmlIngestor.extract_from_html_using_markdownify(raw_text)
+            section_name = (
+                self.data["metadata"]["structData"].get("name", "").strip()
+            )
+            processed_text = f"{section_name}\n{processed_text}"
+            output_data = {("", section_name): processed_text}
+        elif "pdf" in mime_type:
+            #TODO: come up with better storage
+            filepath = f"raw_files/{self.data.get('name')}.pdf"
+            extractor = DefaultPdfExtractor(filepath)
+            elements = extractor.extract_document(True)
+            processed_text = " \n".join([el.text for el in elements if el not in ("Footer", "Header")])
+            section_name = (
+                self.data["metadata"]["structData"].get("name", "").strip()
+            )
+            processed_text = f"{section_name}\n{processed_text}"
+            output_data = {("", section_name): processed_text}
+        elif "word" in mime_type:
+            filepath = f"raw_files/{self.data.get('name')}.docx"
+            extractor = DefaultDocxExtractor(filepath)
+            document = extractor.extract_document()
+            raw_text = extractor.extract_text()
+            document_chunker = DefaultDocxChunker(document, raw_text)
+            output_data = document_chunker.chunk_the_document()
+            additional_chunks = CustomKcDocxChunker(document, raw_text).chunk_the_document()
+            if additional_chunks:
+                output_data.update(additional_chunks)
+
+        else:
+            raise TypeError("Wrong type of KC json data")
         return output_data
 
 
-class CustomBpJsonChunker(DefaultJsonChunker):
+class CustomJsonChunkerTwo(DefaultJsonChunker):
     """Parses Custom B360 JSON data and creates text chunks organized by benefit.
 
     Inherits from the DefaultJsonChunker class.
@@ -300,11 +410,11 @@ class CustomBpJsonChunker(DefaultJsonChunker):
 
         Returns:
             str: The retrieved value. If the value contains HTML tags,
-                 it is processed using CustomHtmlExtractor.extract_text_from_html.
+                 it is processed using DefaultHtmlIngestor.extract_from_html_using_markdownify.
         """
         value = item.get(key, "")
         if value and self.check_html_tags(value):
-            value = CustomHtmlExtractor.extract_text_from_html(value)
+            value = DefaultHtmlIngestor.extract_from_html_using_markdownify(value)
         return value
 
     def chunk_the_document(self) -> dict[tuple[str, str], str]:
@@ -363,18 +473,203 @@ class CustomBpJsonChunker(DefaultJsonChunker):
         return output_data
 
 
+class CustomJsonChunkerThree(CustomJsonChunkerTwo):
+    def chunk_the_document_auto(self) -> dict[tuple[str, str], str]:
+        """Creates text chunks from a Custom B360 JSON document.
+
+        Returns:
+            dict[tuple[str, str], str]: A dictionary where keys are tuples of
+                (benefit ID, section name), and values are the corresponding
+                concatenated text chunks.
+        """
+        print("CustomJsonChunkerThree")
+        def strip_key(parent, key):
+            if key.startswith(parent):
+                return key[len(parent):]
+            return key
+
+        def extract_from_string(item):
+            return DefaultHtmlIngestor.extract_from_html_using_markdownify(item)
+
+        def extract_from_list(parent, item):
+            result = ""
+            for value in item:
+                if isinstance(value, list):
+                    result += f"{extract_from_list(parent, value)}" + "\n"
+                elif isinstance(value, dict):
+                    result += f"{extract_from_dict(parent, value)}" + "\n"
+                elif isinstance(value, str):
+                    result += extract_from_string(value)
+            return result
+
+        def extract_from_dict(parent: str, item):
+            result = ""
+            if item is None:
+                print(parent)
+                print(item)
+            for key, value in item.items():
+                if value:
+                    if isinstance(value, list):
+                        result += f"{extract_from_list(parent, value)}" + "\n"
+                    elif isinstance(value, dict):
+                        result += f"{extract_from_dict(parent, value)}" + "\n"
+                    elif isinstance(value, str):
+                        result += f"{strip_key(parent, key)}: {extract_from_string(value)}\n"
+            return result
+        
+        output_data = {}
+        benefit_id = self.data["BenefitPlan"].get("BenefitPlanID")
+        for item in self.data["BenefitPlan"]['BenefitPlanCSRSection']['BenefitPlanCSR']:
+            section_name = item.get("BenefitPlanCSRName")
+            if section_name:
+                text = extract_from_dict("BenefitPlanCSR", item)
+            if (benefit_id, section_name) not in output_data:
+                output_data[(benefit_id, section_name)] = text
+            else:
+                print(section_name)
+
+        for item in self.data["BenefitPlan"]['BenefitPlanCostShareSections']['PlanCostShareSection']:
+            text = ""
+            section_name = item.get("PlanCostShareSectionName")
+            if section_name:
+                text = extract_from_dict("PlanCostShare", item)
+            if (benefit_id, section_name) not in output_data:
+                output_data[(benefit_id, section_name)] = text
+            else:
+                print(section_name)
+
+        for item in self.data["BenefitPlan"]['BenefitPlanSections']['BenefitSection']:
+            section_name = item.get("BenefitSectionName")
+            if section_name:
+                text = extract_from_dict("Benefit", item)
+            if (benefit_id, section_name) not in output_data:
+                output_data[(benefit_id, section_name)] = text
+            else:
+                print(section_name)
+        return output_data
+    
+
+    def chunk_the_document(self) -> dict[tuple[str, str], str]:
+        """Creates text chunks from a Custom B360 JSON document.
+
+        Returns:
+            dict[tuple[str, str], str]: A dictionary where keys are tuples of
+                (benefit ID, section name), and values are the corresponding
+                concatenated text chunks.
+        """
+        def extract_from_string(item):
+            """Extracts text from an HTML string using the DefaultHtmlIngestor class.
+            Args:
+                item (str): An HTML string.
+
+            Returns:
+                str: The extracted text.
+            """
+            return DefaultHtmlIngestor.extract_from_html_using_markdownify(item)
+
+        def extract_from_list(item):
+            """Recursively extracts text from nested lists and concatenates the results.
+            Args:
+                item (list): A nested list containing strings, dictionaries, and further lists.
+
+            Returns:
+                str: The concatenated text extracted from the nested list structure.
+            """
+            result = ""
+            for value in item:
+                if isinstance(value, list):
+                    result += f"{extract_from_list(value)}\n"
+                elif isinstance(value, dict):
+                    result += f"{extract_from_dict(value)}\n"
+                elif isinstance(value, str):
+                    result += extract_from_string(value)
+            return result
+
+        def extract_from_dict(item):
+            """Recursively extracts text from nested dictionaries, applying formatting based on keys.
+
+            Args:
+                item (dict): A nested dictionary containing strings, dictionaries, and further lists.
+
+            Returns:
+                str: The concatenated text extracted from the nested dictionary structure, 
+                    with formatting applied based on certain keys.
+            """
+            result = ""
+            for key, value in item.items():
+                if value:
+                    if isinstance(value, list):
+                        result += f"{extract_from_list(value)}" + "\n"
+                    elif isinstance(value, dict):
+                        result += f"{extract_from_dict(value)}" + "\n"
+                    elif isinstance(value, str):
+                        if "Type" in key:
+                            result += "Type: "
+                        elif "LimitsAndExceptions" in key:
+                            result += "Limits and Exceptions: "
+                        result += f"{extract_from_string(value)}\n"
+            return result
+        
+        output_data = {}
+        benefit_id = self.data["BenefitPlan"].get("BenefitPlanID")
+        text = ""
+        section_name = "Policy Data"
+
+        for item in self.data['BenefitPlan']['BenefitPlanCSRSection']['BenefitPlanCSR']:
+            text += item["BenefitPlanCSRName"] + "\n"
+            for information in item["BenefitPlanCSRInformation"]:
+                description = information["BenefitPlanCSRInformationTypeLanguageDescription"]
+                text += DefaultHtmlIngestor.extract_from_html_using_markdownify(description) + "\n"
+            text += "\n\n"
+        output_data[(benefit_id, section_name)] = text
+       
+        for item in self.data["BenefitPlan"]['BenefitPlanCostShareSections']['PlanCostShareSection']:
+            section_name = item.get("PlanCostShareSectionName")
+            text = f"{section_name}\n"
+            if section_name:
+                if item.get("PlanCostShare"):
+                    text += extract_from_list(item["PlanCostShare"])
+                if item.get("PlanCostShareCSR"):
+                    text += extract_from_list(item["PlanCostShareCSR"])
+            
+            if (benefit_id, section_name) not in output_data:
+                output_data[(benefit_id, section_name)] = text
+            else:
+                print(section_name)
+
+
+        for item in self.data["BenefitPlan"]['BenefitPlanSections']['BenefitSection']:
+            section_name = item.get("BenefitSectionName")
+            text = f"{section_name}\n"
+            if section_name:
+                if item.get("Benefit"):
+                    text = extract_from_list(item["Benefit"])
+            
+            if (benefit_id, section_name) not in output_data:
+                output_data[(benefit_id, section_name)] = text
+            else:
+                print(section_name)
+        deductibles_text = output_data.get((benefit_id, "Deductibles"))
+        for benefit_id, section_name in output_data:
+            if section_name != "Deductibles":
+                output_data[(benefit_id, section_name)] += deductibles_text 
+        return output_data
+
+
 # ------------------------------------------------------------------
 
 METADATA_CREATOR_MAP = {
     "default": DefaultJsonMetadataCreator,
-    "kc": CustomKcJsonMetadataCreator,
-    "b360": CustomBpJsonMetadataCreator,
+    "kc": CustomJsonMetadataCreatorOne,
+    "b360": CustomJsonMetadataCreatorTwo,
+    "b360_new": CustomJsonMetadataCreatorThree,
 }
 
 CHUNKER_MAP = {
     "default": DefaultJsonChunker,
-    "kc": CustomKcJsonChunker,
-    "b360": CustomBpJsonChunker,
+    "kc": CustomJsonChunkerOne,
+    "b360": CustomJsonChunkerTwo,
+    "b360_new": CustomJsonChunkerThree,
 }
 
 
@@ -399,7 +694,7 @@ class JsonExtractor(BaseExtractor):
           Defaults to 'default'.
     """
 
-    def __init__(self, filepath, config_file_parameters):
+    def __init__(self, filepath: str, config_file_parameters: dict[str, str]):
         super().__init__(filepath, config_file_parameters)
         self.json_extraction = config_file_parameters.get(
             "json_extraction", "default"
@@ -458,15 +753,15 @@ class JsonExtractor(BaseExtractor):
         for (section_id, section_name), context in document_chunks.items():
             filepath = self.create_filepath(metadata, section_name, output_dir)
 
-            with open(filepath + ".txt", "w") as f:
+            with open(filepath + ".txt", "w", encoding="utf-8") as f:
                 f.write(context)
             temp_metadata = metadata.copy()
             temp_metadata.pop("filename")
             temp_metadata["section_name"] = section_name.lower()
-            if section_id:
+            if section_id and isinstance(section_id, str):
                 temp_metadata["benefit_id"] = section_id.lower()
 
-            with open(filepath + "_metadata.json", "w") as f:
+            with open(filepath + "_metadata.json", "w", encoding="utf-8") as f:
                 json.dump(temp_metadata, f)
         return True
 
@@ -488,9 +783,18 @@ class JsonExtractor(BaseExtractor):
         """
         extractor = DefaultJsonExtractor(self.filepath)
         self.data = extractor.extract_document()
-
-        # for b360 need to use loop
-        if self.json_chunking == "b360":
+        if self.json_chunking == "custom":
+            kc_name = re.match(r"^KM\d{7}\.json", os.path.basename(self.filepath))
+            if "BenefitPlan" in self.data and not kc_name:
+                chunking = "b360_new"
+            else:
+                chunking = "kc"
+            config_file_parameters = {"json_chunking": chunking}
+            extractor = JsonExtractor(self.filepath, config_file_parameters)
+            return extractor.process(output_dir)
+        
+        # for b360 use loop
+        elif self.json_chunking == "b360":
             for category_data in self.data["benefits"]:
                 metadata_creator = METADATA_CREATOR_MAP.get(
                     self.json_chunking, DefaultJsonMetadataCreator
@@ -505,6 +809,20 @@ class JsonExtractor(BaseExtractor):
                 document_chunks = document_chunker.chunk_the_document()
                 if not self.create_files(document_chunks, metadata, output_dir):
                     return False
+        elif self.json_chunking == "b360_new":
+            metadata_creator = METADATA_CREATOR_MAP.get(
+                self.json_chunking, DefaultJsonMetadataCreator
+            )(self.filepath, self.data)
+            metadata = metadata_creator.create_metadata()
+            if not metadata:
+                return False
+
+            document_chunker = CHUNKER_MAP.get(
+                self.json_chunking, DefaultJsonChunker
+            )(self.filepath, self.data)
+            document_chunks = document_chunker.chunk_the_document()
+            if not self.create_files(document_chunks, metadata, output_dir):
+                return False
         else:
             metadata_creator = METADATA_CREATOR_MAP.get(
                 self.json_chunking, DefaultJsonMetadataCreator

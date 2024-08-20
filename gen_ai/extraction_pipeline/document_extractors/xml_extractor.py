@@ -1,5 +1,6 @@
 """Provides the XmlExtractor class for extracting textual data from XML (.xml) files and organizing the extracted data into separate files for structured document processing."""
 
+from io import StringIO
 import json
 import os
 import re
@@ -37,6 +38,158 @@ class XmlExtractor(BaseExtractor):
             "xml_extraction", "default"
         )
         self.xml_chunking = config_file_parameters.get("xml_chunking", "default")
+        self.data = None
+
+
+    def explore(self, root, text, metadata):
+        if root.attrib:
+            for key, value in root.attrib.items():
+                if key == "id":
+                    text.append("")
+                    person = metadata["participants"][value]
+                    line = f"{person}:"
+                elif key == "type" and value.lower() == "q":
+                    line = "Question:"
+                elif key == "type" and value.lower() == "a":
+                    line = "Answer:"
+                else:
+                    line = f"{key}: {value}"
+                if line:
+                    text.append(line.strip())
+        if root.text and root.text.strip() != "":
+            text.append(root.text.strip())
+        for element in root:
+            self.explore(element, text, metadata)
+
+    def create_filepath(
+        self, metadata: dict[str, str], section_name: str, output_dir: str
+    ) -> str:
+        """Constructs a filepath for saving a document section to disk.
+
+        Args:
+            metadata (dict[str, str]): A dictionary containing document
+              metadata, including a 'filename' key.
+            section_name (str): The name of the section being saved.
+            output_dir (str): The directory where the generated file should be
+              saved.
+
+        Returns:
+            str: A filepath constructed from the provided information.
+        """
+        filename = os.path.splitext(metadata["filename"])[0]
+        filename += f"-{section_name.lower()}"
+        filename = re.sub(r"[^\w.-]", "_", filename)
+        filename = re.sub(r"__+", "_", filename).rstrip("_")
+        filepath = os.path.join(output_dir, filename)
+        return filepath
+
+    def create_files(
+        self,
+        document_chunks: dict[tuple[str, str], str],
+        metadata: dict[str, str],
+        output_dir: str,
+    ) -> bool:
+        """Saves document sections and associated metadata to individual files.
+
+        The function iterates over a dictionary of document chunks, generates
+        filepaths, and writes both the text content and a corresponding metadata
+        JSON file output directory.
+
+        Args:
+            document_chunks (dict[tuple[str, str], str]): A dictionary where
+              keys are tuples of (section_id, section_title) and values are the
+              corresponding text content.
+            metadata (dict[str, str]):  Metadata associated with the overall
+              document.
+            output_dir (str):  The target directory for saving the output files.
+
+        Returns:
+            bool: True to indicate successful file creation.
+        """
+
+        for (section_id, section_name), context in document_chunks.items():
+            filepath = self.create_filepath(metadata, section_name, output_dir)
+
+            with open(filepath + ".txt", "w", encoding="utf-8") as f:
+                f.write(context)
+            temp_metadata = metadata.copy()
+            temp_metadata.pop("filename")
+            temp_metadata["section_name"] = section_name.lower()
+            if section_id:
+                temp_metadata["benefit_id"] = section_id.lower()
+
+            with open(filepath + "_metadata.json", "w", encoding="utf-8") as f:
+                json.dump(temp_metadata, f)
+        return True
+
+    def process(self, output_dir: str) -> bool:
+        """Main function that controls the processing of a XML file, including extraction, metadata creation, chunking, and file saving.
+
+        This method assumes the file is in a suitable XML format for the chunking
+        logic.
+
+        Args:
+            output_dir (str): The directory where the processed files should be
+                saved.
+
+        Returns:
+            bool: True if processing was successful, False otherwise.
+        """
+        if self.xml_extraction == "custom1":
+            extractor = CustomXmlExtractor(self.filepath, self.config_file_parameters)
+            return extractor.process(output_dir)
+
+        elif self.xml_extraction == "custom2":
+            ingestor = DefaultXmlIngestor(self.filepath)
+            self.data = ingestor.extract_document()
+            if self.data is None:
+                return False
+            metadata_creator = CustomXmlMetadataCreator(self.filepath, self.data)
+            metadata, transcript_metadata = metadata_creator.create_metadata()
+            if not metadata:
+                return False
+            section_name = metadata["section_name"]
+            document_list = [section_name]
+            document_list.append(f"Date: {metadata['date']}")
+            self.explore(self.data.find("body"), document_list, transcript_metadata)
+            document = "\n".join(document_list)
+            document_chunks = {(section_name, section_name): document}
+            if not self.create_files(document_chunks, metadata, output_dir):
+                return False
+            return True
+
+        return False
+
+class CustomXmlExtractor(BaseExtractor):
+    """Extractor class of textual data from XML (.xml) files and chunks sections into separate files.
+
+    This class inherits from the `BaseExtractor` and provides specialized
+    functionality
+    for extracting text content from .xml documents.
+
+    Args:
+        filepath (str): The path to the .docx file.
+        config_file_parameters (dict[str, str]): Configuration settings for the
+            extraction process.
+
+    Attributes:
+        filepath (str): Stores the path to the input file.
+        config_file_parameters (dict[str, str]): Stores the configuration
+            parameters.
+        xml_extraction (str): Configuration parameter fot the extraction method.
+            Defaults to 'default'.
+        xml_chunking (str):  Configuration parameter fot the chunking method.
+            Defaults to 'default'.
+    """
+
+    def __init__(self, filepath: str, config_file_parameters: dict[str, str]):
+        super().__init__(filepath, config_file_parameters)
+
+        self.xml_extraction = config_file_parameters.get(
+            "xml_extraction", "default"
+        )
+        self.xml_chunking = config_file_parameters.get("xml_chunking", "default")
+        self.data = None
 
     def modify_file(self):
         """Modifies an existing file by adding a ProcessGroup block and other blocks if they are not already present within the file."""
@@ -185,15 +338,109 @@ class XmlExtractor(BaseExtractor):
         Returns:
             bool: True if processing was successful, False otherwise.
         """
-        if self.xml_chunking == "default":
-            self.modify_file()
+        self.modify_file()
 
-            tree = ET.parse(self.filepath)
-            root = tree.getroot()
-            content = {}
+        tree = ET.parse(self.filepath)
+        root = tree.getroot()
+        content = {}
 
-            self.explore_xml_tree(root, content, [], set())
-            if not content:
-                return False
-            self.create_file(content, output_dir)
-            return True
+        self.explore_xml_tree(root, content, [], set())
+        if not content:
+            return False
+        self.create_file(content, output_dir)
+        return True
+
+class DefaultXmlIngestor:
+    """Default ingestor class that provides methods for extracting content from xml files.
+
+    Args:
+        filepath (str): The path to the json file.
+
+    Attributes:
+        filepath (str): The path to the json file.
+    """
+
+    def __init__(self, filepath: str):
+        self.filepath = filepath
+
+    def extract_document(self) -> ET.Element | None:
+        """Extracts data from the json file.
+
+        Returns:
+            
+        """
+        try:
+            with open(self.filepath, "r", encoding="utf-8") as f:
+                xml = f.read()
+            it = ET.iterparse(StringIO(xml))
+            for _, el in it:
+                _, _, el.tag = el.tag.rpartition('}')
+            return it.root
+        except OSError as e:
+            print(f"Error: Unable to open or process the file '{self.filepath}' due to an OS error: {e}")
+            return None
+        except ET.ParseError as e:
+            print(f"Error: Invalid XML format in '{self.filepath}': {e}")
+            return None
+        
+class CustomXmlMetadataCreator():
+    """Custom personalized class for creating metadata from xml files.
+
+    Provides a basic metadata structure including the filename.
+    """
+
+    def __init__(self, filepath: str, data: ET.Element):
+        self.filepath = filepath
+        self.data = data
+
+    def parse_transcript_meta(self):
+        metadata = {}
+        root = self.data.find("meta")
+        for element in root:
+            if element.tag == "title":
+                metadata["title"] = element.text
+            elif element.tag == "date":
+                metadata["date"] = element.text
+            elif element.tag == "companies":
+                companies = []
+                for company in element:
+                    companies.append(company.text)
+                metadata["companies"] = companies
+            elif element.tag == "participants":
+                participants = {}
+                for participant in element:
+                    participant_id = participant.attrib["id"]
+                    title = participant.attrib.get("title")
+                    affiliation = participant.attrib.get("affiliation")
+                    name = participant.text
+                    participant_info = ""
+                    if title:
+                        participant_info += f'{title}'
+                    if affiliation:
+                        participant_info += f', {affiliation}'
+                    participant_info += f"\n{name}"
+                    participants[participant_id] = participant_info
+                metadata["participants"] = participants
+        return metadata
+
+    def create_metadata(self) -> dict[str, str]:
+        metadata = {
+            "data_source": "transcipt",
+            "symbols": "",
+            "filing_type": "",
+            "period": "",
+            "section_name": "",
+            "date": "",
+            "original_filepath": "",
+            "filename": "",
+        }
+
+        metadata["original_filepath"] = os.path.basename(self.filepath)
+        filename = os.path.basename(self.filepath)
+        filename = os.path.splitext(filename)[0]
+        metadata["filename"] = filename
+        transcript_metadata = self.parse_transcript_meta()
+        metadata["section_name"] = transcript_metadata["title"]
+        metadata["date"] = transcript_metadata["date"]
+        return metadata, transcript_metadata
+

@@ -211,7 +211,7 @@ class DocxExtractor(BaseExtractor):
         document_chunks = document_chunker.chunk_the_document()
         additional_kc_chunks = (
             CustomKcDocxChunker(self.document, self.raw_text).chunk_the_document()
-            if self.docx_chunking == "combo"
+            if self.docx_chunking == "custom"
             else None
         )
         if additional_kc_chunks:
@@ -381,6 +381,23 @@ class CustomKcDocxMetadataCreator(DefaultDocxMetadataCreator):
 
         return title
 
+    def _extract_doc_identifier(self) -> str | None:
+        """Extracts the doc_identifier from the filename of the document.
+
+        Searches for a pattern like "KM...".
+
+        Returns:
+            str: The formatted doc_identifier if found.
+            None: If the doc_identifier pattern is not found in the filename.
+        """
+        match = re.search(r'km\d+', self.filename.lower())
+
+        if match:
+            doc_identifier = match.group().strip()
+            return doc_identifier
+        else:
+            return None
+    
     def create_metadata(self) -> dict[str, str]:
         """Method to be implemented by subclasses.
 
@@ -394,6 +411,7 @@ class CustomKcDocxMetadataCreator(DefaultDocxMetadataCreator):
         effective_date = self._extract_effective_date()
         title = self._extract_title()
         plan_name = self._extract_planname()
+        doc_identifier = self._extract_doc_identifier()
 
         filename = f"{policy_number}-{title}"
         filename = re.sub(r"[^\w.-]", "_", filename)
@@ -405,12 +423,12 @@ class CustomKcDocxMetadataCreator(DefaultDocxMetadataCreator):
             "set_number": "",
             "effective_date": effective_date or "",
             "cancellation_date": "",
-            "original_filepath": "",
+            "original_filepath": self.filename,
             "section_name": "",
             "plan_name": plan_name or "",
             "policy_title": title or "",
             "url": "",
-            "doc_identifier": "",
+            "doc_identifier": doc_identifier or "",
             "category_name": "",
             "benefit_id": "",
             "filename": filename or "",
