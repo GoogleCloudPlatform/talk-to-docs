@@ -3,7 +3,8 @@
 # Project and User specific configuration
 bq_project_id: mkamatala-genai-bb # change for the user's project id
 dataset_name: uhg # change for new project
-gcs_source_bucket: gs://uhg_data/extractions20240715 # change for new project
+gcs_source_bucket: gs://uhg_data/extractions20240819
+#gs://uhg_data/extractions20240715 # change for new project
 terraform_credentials: terraform-service-account-credentials.json # change for the user
 terraform_instance_name: talk-to-docs-instance
 terraform_redis_name: talk-to-docs-redis-instance
@@ -591,7 +592,7 @@ simple_react_chain_prompt: |
       - If you are unable to answer a question, do not direct the member to plan documents or HR department etc. Instead look for the key words with in the data corpus to find a relevant answer.
       - If the (b360_context) is not available, then provide the responses from (kc_context) only. Do not use information from the <Examples> below to generate the answers. The answers have to be grounded in the provided documents.
       - As far as possible, clearly articulate and present INN and OON benefits seperately and do not merge INN and OON benefits together.
-      - If the provided (b360_context) or (kc_context) includes an (*) asterisk, then treat it as a footnote and be sure to include the text that's listed after the asterisk (*) in the output, so that it's complete.
+      - Sometimes important information is captured in the relevant context after an '*' symbol. This indicates that there are improtant caveats that should be considered. Output any such caveats appearing after an '*' verbatim, in the response. 
   </Suggestions>
 
   <Examples>
@@ -899,6 +900,33 @@ simple_react_chain_prompt: |
         }}
       </Output>
     </Example3>
+    <Example4>
+      <Question> 
+        What is the in-network deductible for an individual? 
+      </Question>
+      <Previous Conversation>
+        ""
+      </Previous Conversation>
+      <Previous Rounds>
+        ""
+      </Previous Rounds>
+      <b360_context>
+        DOCUMENT TITLE: About Your Benefits
+        DOCUMENT SECTION NAME: Deductibles
+        DOCUMENT CONTENT:
+        Type: INN\nYour cost if you use Network benefits\nIndividual Deductible\n **$1600**\n Family Deductible\n **$3200** \\*\n \\* For family coverage, no one in your family is allowed to receive benefits until the family annual deductible is met.\nType: OON\nYour cost if you use Out-of-Network benefits\nIndividual Deductible\n **$3200**\n Family Deductible\n **$6400** \\*\n \\* For family coverage, no one in your family is allowed to receive benefits until the family annual deductible is met.\n
+      </b360_context>
+            The JSON response for the round number 0 for the question "What is the in-network deductible for an individual?".
+      <Output>
+        {{"plan_and_summaries":'The question is asking for the in-network deductible for an individual. I will check the b360 document for information on deductibles and then the kc document for the specific plan details including deductible and coinsurance amounts.
+        INN\nYour cost if you use Network benefits\nIndividual Deductible\n **$1600**\n Family Deductible\n **$3200** \\*\n \\* For family coverage, no one in your family is allowed to receive benefits until the family annual deductible is met.\nType: OON\nYour cost if you use Out-of-Network benefits\nIndividual Deductible\n **$3200**\n Family Deductible\n **$6400** \\*\n \\* For family coverage, no one in your family is allowed to receive benefits until the family annual deductible is met.\n',
+        "answer": "The in-network deductible for an individual is $1600. The family deductible is $3200. For family coverage, no one in your family is allowed to receive benefits until the family annual deductible is met.",
+        "additional_information_to_retrieve": "",
+        "context_used": "['deductibles']",
+        "confidence_score": 100,
+        "answer_confidence_reasoning": "The answer includes INN (in-network) deductibles information, including family deductible. Additionally the answer includes, the caveats provided in the relevant context after the "*" i.e. For family coverage, no one in your family is allowed to receive benefits until the family annual deductible is met. And it is based on the factual information. Therefore the confidence in this response is 100."}}
+      </Output>
+    </Example4>
   </Examples>
 
   Now it's your turn!
