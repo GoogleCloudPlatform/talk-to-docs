@@ -3,7 +3,7 @@
 # Project and User specific configuration
 bq_project_id: null # change for the user's project id
 dataset_name: uhg # change for new project
-gcs_source_bucket: gs://uhg_data/extractions20240715 # change for new project
+gcs_source_bucket: gs://uhg_data/extractions20240819 # change for new project
 terraform_credentials: terraform-service-account-credentials.json # change for the user
 terraform_instance_name: talk-to-docs-instance
 terraform_redis_name: talk-to-docs-redis-instance
@@ -23,8 +23,8 @@ embeddings_model_name: textembedding-gecko@003
 vector_name: vais
 document_retriever: custom # custom is for custom use case
 vais_staging_bucket: null
-vais_data_store: null # replace with data store ID to be created in Terraform and used by T2X
-vais_engine_id: null # replace with search engine ID to be created in Terraform and used by T2X
+vais_data_store: data-store-uhg-docs # replace with data store ID to be created in Terraform and used by T2X
+vais_engine_id: search-engine-uhg-docs # replace with search engine ID to be created in Terraform and used by T2X
 vais_location: us # one of us, eu, global
 use_prev_and_next_pieces: 1 # integer between 0 and 3
 api_mode: stateful
@@ -66,6 +66,7 @@ existing_policies:
   "931906":
     "001acis": null
     "002acis": null
+  "0701648" : {}
   "generic": {}
 
 is_debug: true

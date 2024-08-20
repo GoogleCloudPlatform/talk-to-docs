@@ -3,7 +3,7 @@
 **Key Functions:**
 
 * **create_directory(directory)**: Creates a directory structure with specified 
-permissions (0o777).
+permissions (0o455).
 * **copy_from_gcs(gcs_bucket, destination_folder)**: Copies data from a GCS bucket to a local 
 directory using the `gsutil` tool.
 * **copy_resources()**:  Coordinates the process of loading configuration, preparing local 
@@ -25,7 +25,7 @@ def create_directory(directory: str):
 
     This function attempts to create the directory and all necessary parent
     directories. If the directory already exists, no action is taken. It then
-    sets the permissions of the directory to 0o777 (read, write, execute for all users).
+    sets the permissions of the directory to 0o455 ().
 
     Args:
         directory (str): The path of the directory to be created.
@@ -35,7 +35,7 @@ def create_directory(directory: str):
     """
     try:
         os.makedirs(directory, exist_ok=True)
-        os.chmod(directory, 0o777)
+        os.chmod(directory, 0o455)
     except OSError as e:
         print(f"Error creating directory {directory}: {e}")
 
