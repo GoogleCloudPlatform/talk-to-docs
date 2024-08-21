@@ -5,6 +5,7 @@ counting, data loading, JSON handling, and interaction with language models.
 
 import json
 import re
+import os
 import warnings
 from typing import List, Tuple
 
@@ -19,7 +20,7 @@ from gen_ai.deploy.model import QueryState
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-LLM_YAML_FILE = "gen_ai/llm.yaml"
+LLM_YAML_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "llm.yaml")
 
 
 class TokenCounter:
