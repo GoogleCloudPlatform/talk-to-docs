@@ -434,7 +434,7 @@ if __name__ == "__main__":
             root_path=Container.config.get("gradio_root_path", None),
             server_name=server_name,
             server_port=int(os.environ.get("PORT", 7860)),
-            auth=authenticate,
+            # auth=authenticate,
             ssl_verify=False,
             share=False,
         )
