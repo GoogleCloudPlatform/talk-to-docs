@@ -2,14 +2,18 @@ import os
 import json
 import json5
 import re
-from gen_ai.common.ioc_container import provide_vector_indices
-from gen_ai.common.common import load_yaml
-from langchain.llms import VertexAI
+from langchain_community.llms import VertexAI
 from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
+from langchain.schema.embeddings import Embeddings
+from gen_ai.common.common import load_yaml
+from gen_ai.common.embeddings_provider import EmbeddingsProvider
+from gen_ai.common.storage import DefaultStorage
+from gen_ai.common.vector_provider import VectorStrategy, VectorStrategyProvider
+
 import datetime
 
-LLM_YAML_FILE = "gen_ai/ingestion_pipeline/ingestion_config.yaml"
+LLM_YAML_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), "ingestion_config.yaml")
 
 def replace_consecutive_whitespace(text):
     """Replaces consecutive whitespace characters of the same type with a single instance."""
@@ -59,6 +63,42 @@ def parse_into_hashmap(processed_files_dir: str) -> dict[str, dict]:
                 return
             data_dict[policy_number][section_identifier] = metadata
     return data_dict
+
+
+def provide_vector_indices(regenerate: bool = False):
+    """
+    Provides or regenerates vector indices for embeddings using a specified vector strategy.
+
+    This function initializes or updates vector indices based on the configuration specified in LLM_YAML_FILE.
+    It manages embeddings and vector strategies to create a Chroma vector store instance suitable for semantic
+    operations.
+
+    Args:
+        regenerate (bool, optional): If true, existing vector indices are regenerated; otherwise, the current indices
+        are used. Defaults to False.
+
+    Returns:
+        Chroma: An instance of Chroma vector store populated with the appropriate vector indices for the configured
+        embeddings and vector strategy.
+    """
+    config = load_yaml(LLM_YAML_FILE)
+    embeddings_name = config.get("embeddings_name")
+    embeddings_model_name = config.get("embeddings_model_name")
+    vector_name = config.get("vector_name")
+    dataset_name = config.get("dataset_name")
+    processed_files_dir = config.get("processed_files_dir").format(dataset_name=dataset_name)
+    vectore_store_path = config.get("vector_store_path")
+
+    embeddings_provider = EmbeddingsProvider(embeddings_name, embeddings_model_name)
+    embeddings: Embeddings = embeddings_provider()
+
+    vector_strategy_provider = VectorStrategyProvider(vector_name)
+    vector_strategy: VectorStrategy = vector_strategy_provider(
+        storage_interface=DefaultStorage(), config=config, vectore_store_path=vectore_store_path
+    )
+
+    local_vector_indices = {}
+    return vector_strategy.get_vector_indices(regenerate, embeddings, local_vector_indices, processed_files_dir)
 
 
 def clean_line(line: str) -> str:
@@ -223,7 +263,7 @@ def find_docs_and_ask_llm(sections_to_clean: dict[str, dict],
                         print("-"*50)
                     except Exception as e:
                         try:
-                            modified_output = corrector_chain().run(json=modified_output)
+                            modified_output = corrector_chain.run(json=modified_output)
                             modified_output = modified_output.replace("```json", "").replace("```", "")
                             the_output = json5.loads(modified_output)
                             modified_text = the_output["new_content"]
