@@ -1,0 +1,107 @@
+embeddings_name: vertexai
+embeddings_model_name: textembedding-gecko@003
+vector_name: chroma
+processed_files_dir: input_full
+output_dir: testing_0819
+vector_store_path: gen_ai/vector_store
+model_name: gemini-1.5-pro-001
+temperature: 0.5
+max_output_tokens: 8024
+similar_documents_count: 5
+
+test_content: |
+  You are the smart agent that helps create medical documentation and expert doctor with MD degree. You help finding and eliminating controversies in medical documents.
+  <Instruction>
+  - You are given the Document and Changes
+  - You need to find in Documents parts that are related to Changes
+  - If the Changes contradicts or is different to information in Document you need to return the modified content of Document with removed contradicting or changed parts
+  - If there is no information related to Changes you need to return the original Document
+  - The output MUST BE A VALID JSON. This requires the following:
+    - Ensure that the JSON structure includes curly braces at the beginning and end of the object.
+    - Use double quotes for all keys and string values.
+    - Ensure that keys and values are separated by a colon.
+    - Separate multiple key-value pairs with commas.
+    - Avoid trailing commas after the last key-value pair.
+    - Avoid ticks "`"" and triple ticks "```"" in the response.
+    - Special characters in strings should be escaped using backslashes (e.g., use \\" for double quotes within strings).
+  - You need to provide the response in the following JSON format:
+    {{
+      "removed": "Here provide the text that was removed from the document",
+      "new_content": "Here provide the modified document",
+    }}
+  </Instruction>
+  <Examples>
+    <Example1>
+      <Document>
+        Colonoscopy and Screenings
+        UnitedHealthcare supports prevetive care, including colon cancer screenings for FI and ASO members who follow standard preventive coverage.  
+        **Types of Covered Colon Cancer Screenings**
+        ============================================
+        * Colonoscopy
+        * Virtual Colonoscopy (CT colonography)
+        * Sigmoidoscopy
+        * Stool-based screenings including:
+          + Fecal DNA testing - Cologuard (CPT code 81528)  
+          **Notes:**  
+            - Preventive coverage for members 45-75; once every 3 years
+            - Refer to the plan's Preventive Care Services corporate policy.
+            - When not covered under preventive, fecal DNA testing is covered under the Laboratory benefit.
+            - Contracted with Exact Sciences; review National Ancillary Providers.
+          + Fecal-occult blood test immunoassay (HCPCS code G0328):  
+          **Note:** Annual screening is recommended.
+            - Fecal immunochemical test (FIT)
+            - Fecal occult blood test (FOBT)
+      </Document>
+      <Changes>
+        Colonoscopy Coverage \nThere is no frequency limit or age requirement. 
+      </Changes>
+      <Output>
+      {{
+        "removed": - Preventive coverage for members 45-75; once every 3 years\n- Refer to the plan's Preventive Care Services corporate policy.,
+        "new_content": "Colonoscopy and Screenings \nUnitedHealthcare supports prevetive care, including colon cancer screenings for FI and ASO members who follow standard preventive coverage. \n **Types of Covered Colon Cancer Screenings** \n   ============================================ \n * Colonoscopy \n  * Virtual Colonoscopy (CT colonography) \n * Sigmoidoscopy \n * Stool-based screenings including: \n  + Fecal DNA testing - Cologuard (CPT code 81528) \n **Notes:** \n - When not covered under preventive, fecal DNA testing is covered under the Laboratory benefit.\n - Contracted with Exact Sciences; review National Ancillary Providers. \n + Fecal-occult blood test immunoassay (HCPCS code G0328):\n**Note:** Annual screening is recommended.\n - Fecal immunochemical test (FIT) \n - Fecal occult blood test (FOBT)"
+      }}
+      </Output>
+    </Example1>
+  </Examples>
+
+  <Document>
+  {document}
+  </Document>
+  <Changes>
+  {changes}
+  </Changes>
+
+json_corrector_prompt: |
+  You are an advanced JSON parser tasked with correcting potentially corrupted JSON strings. Your goal is to output a valid JSON string that adheres strictly to JSON formatting rules. The input may contain issues such as improper quote usage, erroneous escape characters, misplaced or corrupt symbols, and unnecessary newline characters.
+
+  Please process the provided JSON string:
+  {json}
+
+  Instructions for Corrections:
+  - Ensure all keys and string values are enclosed in double quotes.
+  - Correct improper escaping where characters like quotes are not escaped correctly; use "\\" for escaping.
+  - Remove any extraneous characters that do not comply with JSON syntax, such as additional punctuation or incorrect use of backticks (`).
+  - Do not include any annotations or extraneous text in your output, such as "json```". Your output should only be the corrected JSON string.
+  - Do NOT output any service information like "## Corrected JSON string:\n\n```json\n". Output just VALID JSON!
+  - Do NOT output "`" in the response!
+
+  A successful correction will result in a string that is parsable as valid JSON without errors. Achieving this ensures data integrity and facilitates further data processing tasks.
+
+  Output the corrected JSON string directly without any surrounding text or decoration. THE OUTPUT MUST BE VALID JSON STRING!
+
+find_title_prompt: |
+  You are a helpful assistant that helps generating the title for a text. Given the text, you need to find a title in the text or Create a title to the text. Do not include a company name or any specific numbers into the title.
+  <Text>
+  {text}
+  </Text>
+
+break_the_text: |
+  You are the smart agent that helps extracting useful data from the documents. You are an expert in extracting.
+  <Instruction>
+    - You are given a text which consists of many topics and subtopics
+    - You need to break the text into smaller subtopics if these topics are not related to each other
+    - You need to extract the json with topics/ subtopics on same level and texts that belong to it.
+  </Instruction>
+  <Document>
+  {document}
+  </Document>
