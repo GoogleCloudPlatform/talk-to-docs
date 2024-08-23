@@ -14,7 +14,7 @@ This repository contains platform code for accelerating development of GenAI sol
 
 ## Getting Started
 
-To get started with the GenAI solution accelerators, follow the instructions in the terraform deployment [instructions](terraform/README.md). 
+To get started with the GenAI solution accelerators, follow the [instructions](terraform/README.md) in the terraform deployment. 
 It will provide you with step-by-step guidance on how to set up your environment.
 
 ## Contribution Guidelines
