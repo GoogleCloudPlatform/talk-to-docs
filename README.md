@@ -6,8 +6,9 @@ This repository contains platform code for accelerating development of GenAI sol
 # Structure
 
 - **gen_ai**: The source code for the GenAI solution accelerators is located here. This is where you'll find the core codebase for the tools and frameworks provided in this repository.
-  - **gena_ai/tests**: Test cases and resources related to testing the GenAI solution accelerators are stored in this directory.
-  - **gena_ai/extraction_pipeline**: Framework to extract valuable data from various document formats, that is used to create data store later in the flow.
+  - **gen_ai/tests**: Test cases and resources related to testing the GenAI solution accelerators are stored in this directory.
+  - **gen_ai/extraction_pipeline**: [Framework to extract valuable data from various document formats, that is used to create data store later in the flow](gen_ai/extraction_pipeline/README.md).
+  - **gen_ai/ingestion_pipeline**: [Framework for processing and modifying knowledge management (KM) documents](gen_ai/ingestion_pipeline/README.md).
 
 - **terraform**: This directory contains terraform files required for the infrastructure deployment.
 
@@ -29,9 +30,3 @@ This repository is licensed under the [Apache License](LICENSE). See the [LICENS
 If you have any questions or need assistance, feel free to reach out to the project maintainers or create an issue in this repository.
 
 Happy GenAI development!
-
-
-## Setting up
-To begin development you can use 2 different approaches: using Python Environment or using Docker. Below are instructions for each approach.
-
-For extraction pipeline, check this [guide](gen_ai/extraction_pipeline/README.md)
