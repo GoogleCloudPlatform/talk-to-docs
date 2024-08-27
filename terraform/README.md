@@ -419,6 +419,18 @@ gcloud workflows executions wait-last
 
 
 &nbsp;
+# Test the End Point
+Using the `AUDIENCE` set previously, refresh the TOKEN and send request to LLM end Point:
+
+```shell
+export TOKEN=$(gcloud auth print-identity-token --impersonate-service-account=$RUN_INVOKER_SERVICE_ACCOUNT --audiences=$AUDIENCE)
+```
+
+```shell
+curl -X POST -H "Authorization: Bearer ${TOKEN}" -H "Content-Type: application/json" -d '{"question": "I injured my back. Is massage therapy covered?", "member_context_full": {"set_number": "001acis", "member_id": "1234"}}' ${AUDIENCE}/respond/
+```
+
+&nbsp;
 # Configure Identity-Aware Proxy
 ([return to top](#talk-to-docs-application-deployment-with-terraform))
 - Configuring IAP for an 'External' app is only possible from the Google Cloud Console.
