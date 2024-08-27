@@ -332,7 +332,7 @@ def custom_generate_contexts_from_docs(
     <b360_context>
         {b360_context}
     </b360_context>
-    This marks the start of text from kc documents. Remember that these are generic documents that will be overridden by a b360 documents, in case of a conflict re: coverage of a service.
+    This marks the start of text from kc Documents. Remember that the content of <b360_context> above overrides the <kc_context> below in case of a contradictory answers from both <b360_context> and <kc_context>.
     This is the start of kc Documents:
     <kc_context>
         {kc_context}

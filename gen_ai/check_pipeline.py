@@ -202,11 +202,13 @@ def run_pipeline(
                 scores_df.to_csv(f"{output_path}/{session_id}_run.csv", index=None)
         elif mode == "step":
             start = default_timer()
-            question = (
-                "I would like to know the answer to a question from the following member. The member is a subscriber, "
-                "a 59 year old female without any OI (other insurance coverage). She was just diagnosed with ESRD "
-                "and is now eligible for Medicare. Which is her primary plan?"
-            )
+            # question = (
+            #     "I would like to know the answer to a question from the following member. The member is a subscriber, "
+            #     "a 59 year old female without any OI (other insurance coverage). She was just diagnosed with ESRD "
+            #     "and is now eligible for Medicare. Which is her primary plan?"
+            # )
+            question = "Does acupuncture cover back pain?"
+            
             acis = "001acis"
             for idx, input_query in enumerate([question]):
                 Container.original_question = question
@@ -214,7 +216,7 @@ def run_pipeline(
                 Container.logger().info(msg=f"Question: {input_query}")
                 answer = run_single_prediction(
                     input_query,
-                    {"set_number": acis, "member_id": "q1e23", "session_id": session_id, "policy_number": "905531"},
+                    {"set_number": acis, "member_id": "q1e23", "session_id": session_id, "policy_number": "931906"},
                 )
                 Container.logger().info(msg=f"Answer: {answer}")
             end = default_timer()
@@ -233,7 +235,7 @@ def merge_csv_files(the_path: str) -> None:
 
     """
 
-    csv_files = glob.glob(the_path + "*.csv")
+    csv_files = glob.glob(the_path + "/*.csv")
 
     fields = [
         "response",
