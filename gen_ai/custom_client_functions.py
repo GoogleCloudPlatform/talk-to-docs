@@ -23,7 +23,7 @@ from gen_ai.deploy.model import QueryState
 
 
 def generate_contexts_from_docs(docs_and_scores: list[Document], query_state: QueryState | None = None) -> list[str]:
-    return default_generate_contexts_from_docs(docs_and_scores, query_state)
+    return custom_generate_contexts_from_docs(docs_and_scores, query_state)
 
 
 def build_doc_title(metadata: dict[str, str]) -> str:
@@ -328,10 +328,12 @@ def custom_generate_contexts_from_docs(
     b360_context = default_generate_contexts_from_docs(b360_docs, query_state)[0]
 
     custom_context = f"""
+    This is the start of b360 Documents:
     <b360_context>
         {b360_context}
     </b360_context>
     This marks the start of text from kc documents. Remember that these are generic documents that will be overridden by a b360 documents, in case of a conflict re: coverage of a service.
+    This is the start of kc Documents:
     <kc_context>
         {kc_context}
     </kc_context>
