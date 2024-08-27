@@ -60,9 +60,11 @@ def predict(conversation: Conversation, input_query, input_metadata, request: gr
     conversation.exchanges.append(query_state)
 
     if input_metadata:
-        input_metadata = {"set_number": input_metadata.lower()}
+        input_metadata = {"set_number": input_metadata.lower(),
+                          "member_id": "m123"}
     else:
         input_metadata = None
+    print(f"input_metadata = {input_metadata}")
     llm.respond(conversation, input_metadata)
 
     end_time = datetime.now()
@@ -272,7 +274,8 @@ if __name__ == "__main__":
 
         # Chatbot interface display
         gr.HTML("<div><h3>Chat History</h3></div>")
-        chatbot = gr.Chatbot(elem_id="chatbot", label="Chat History", container=False, show_label=True)
+        chatbot = gr.Chatbot(elem_id="chatbot", label="Chat History", container=False, show_label=True).\
+            style(selectable=True)
         # Row of input for text box and the primary process button
         with gr.Row(variant="panel", equal_height=True):
             with gr.Column(scale=2):
