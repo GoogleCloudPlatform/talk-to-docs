@@ -4,7 +4,7 @@ json_chunking: custom
 pdf_extraction: default
 pdf_chunking: default
 html_extraction: custom
-
+raw_files_path: "/home/raw_files"
 project_id: null
 dataset_id: dataset
 table_name: parsing_table

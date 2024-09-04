@@ -308,9 +308,10 @@ class DefaultJsonChunker:
           data.
     """
 
-    def __init__(self, filepath: str, data: dict[str, Any]):
+    def __init__(self, filepath: str, data: dict[str, Any], config_file_parameters: dict[str, str]):
         self.filepath = filepath
         self.data = data
+        self.raw_files_path = config_file_parameters.get("raw_files_path", "raw_files")
 
     def chunk_the_document(self) -> dict[tuple[str, str], str]:
         """Creates chunks from the JSON data.
@@ -359,7 +360,7 @@ class CustomJsonChunkerOne(DefaultJsonChunker):
             output_data = {("", section_name): processed_text}
         elif "pdf" in mime_type:
             #TODO: come up with better storage
-            filepath = f"raw_files/{self.data.get('name')}.pdf"
+            filepath = f"{self.raw_files_path}/{self.data.get('name')}.pdf"
             extractor = DefaultPdfExtractor(filepath)
             elements = extractor.extract_document(True)
             processed_text = " \n".join([el.text for el in elements if el not in ("Footer", "Header")])
@@ -369,7 +370,7 @@ class CustomJsonChunkerOne(DefaultJsonChunker):
             processed_text = f"{section_name}\n{processed_text}"
             output_data = {("", section_name): processed_text}
         elif "word" in mime_type:
-            filepath = f"raw_files/{self.data.get('name')}.docx"
+            filepath = f"{self.raw_files_path}/{self.data.get('name')}.docx"
             extractor = DefaultDocxExtractor(filepath)
             document = extractor.extract_document()
             raw_text = extractor.extract_text()
@@ -702,6 +703,7 @@ class JsonExtractor(BaseExtractor):
         self.json_chunking = config_file_parameters.get(
             "json_chunking", "default"
         )
+        self.raw_files_path = config_file_parameters.get("raw_files_path", "raw_files")
         self.data = None
 
     def create_filepath(
@@ -783,13 +785,14 @@ class JsonExtractor(BaseExtractor):
         """
         extractor = DefaultJsonExtractor(self.filepath)
         self.data = extractor.extract_document()
+        config_file_parameters = {"raw_files_path": self.raw_files_path}
         if self.json_chunking == "custom":
             kc_name = re.match(r"^KM\d{7}\.json", os.path.basename(self.filepath))
             if "BenefitPlan" in self.data and not kc_name:
                 chunking = "b360_new"
             else:
                 chunking = "kc"
-            config_file_parameters = {"json_chunking": chunking}
+            config_file_parameters.update({"json_chunking": chunking})
             extractor = JsonExtractor(self.filepath, config_file_parameters)
             return extractor.process(output_dir)
         
@@ -805,7 +808,7 @@ class JsonExtractor(BaseExtractor):
 
                 document_chunker = CHUNKER_MAP.get(
                     self.json_chunking, DefaultJsonChunker
-                )(self.filepath, category_data)
+                )(self.filepath, category_data, config_file_parameters)
                 document_chunks = document_chunker.chunk_the_document()
                 if not self.create_files(document_chunks, metadata, output_dir):
                     return False
@@ -819,7 +822,7 @@ class JsonExtractor(BaseExtractor):
 
             document_chunker = CHUNKER_MAP.get(
                 self.json_chunking, DefaultJsonChunker
-            )(self.filepath, self.data)
+            )(self.filepath, self.data, config_file_parameters)
             document_chunks = document_chunker.chunk_the_document()
             if not self.create_files(document_chunks, metadata, output_dir):
                 return False
@@ -833,7 +836,7 @@ class JsonExtractor(BaseExtractor):
 
             document_chunker = CHUNKER_MAP.get(
                 self.json_chunking, DefaultJsonChunker
-            )(self.filepath, self.data)
+            )(self.filepath, self.data, config_file_parameters)
             document_chunks = document_chunker.chunk_the_document()
             if not document_chunks:
                 return False
