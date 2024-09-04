@@ -471,8 +471,10 @@ class DefaultDocxChunker:
         sections_names = []
         for paragraph in self.document.paragraphs:
             if style.lower() in paragraph.style.name.lower():
-                level = int(re.findall(r"\d+", paragraph.style.name)[0])
-                sections_names.append((level, paragraph.text))
+                found_results = re.findall(r"\d+", paragraph.style.name)
+                if found_results:
+                    level = int(found_results[0])
+                    sections_names.append((level, paragraph.text))
         return sections_names
 
     def get_next_section_index(
