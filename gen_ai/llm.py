@@ -29,6 +29,7 @@ import uuid
 from timeit import default_timer
 from typing import Any
 from ast import literal_eval
+import re
 
 import json5
 from dependency_injector.wiring import inject
@@ -333,7 +334,59 @@ def generate_response_react(conversation: Conversation) -> tuple[Conversation, l
     for x in log_snapshots:
         x["post_filtered_docs_so_far"] = post_filtered_docs
 
+    if check_for_plain_text(conversation[-1].answer):
+        conversation[-1].answer = live_format_answer(conversation[-1].answer)
     return conversation, log_snapshots
+
+
+def live_format_answer(text: str) -> str:
+    sentence_endings = re.compile(r"(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s")
+    sentences = sentence_endings.split(text)
+
+    formatted_text = ""
+    for i in range(0, len(sentences), 3):
+        chunk = " ".join(sentences[i : i + 3]).strip()
+        formatted_text += chunk + "\n" if chunk else ""
+
+    return formatted_text.strip()
+
+
+def check_for_plain_text(text: str) -> bool:
+    markdown_patterns = [
+        r"\*\*.*?\*\*",  # Bold (e.g., **bold**)
+        r"\*.*?\*",  # Italics (e.g., *italic*)
+        r"__.*?__",  # Bold (e.g., __bold__)
+        r"_.*?_",  # Italics (e.g., _italic_)
+        r"\[.*?\]\(.*?\)",  # Links (e.g., [text](url))
+        r"\#",  # Headings (e.g., # heading)
+        r"`.*?`",  # Inline code (e.g., `code`)
+        r"```[\s\S]*?```",  # Code block (e.g., ``` code block ```)
+    ]
+
+    bullet_point_patterns = [
+        r"^\s*[-\*+]\s+",  # Bullet points (e.g., - item, * item, + item)
+        r"^\s*\d+\.\s+",  # Numbered lists (e.g., 1. item)
+    ]
+
+    table_pattern = r"\|\s*.+?\s*\|.*?\|?"  # Table (e.g., | col1 | col2 |)
+
+    tab_pattern = r"\t"
+
+    for pattern in markdown_patterns:
+        if re.search(pattern, text):
+            return False
+
+    for pattern in bullet_point_patterns:
+        if re.search(pattern, text, re.MULTILINE):
+            return False
+
+    if re.search(table_pattern, text):
+        return False
+
+    if re.search(tab_pattern, text):
+        return False
+
+    return True
 
 
 def respond(conversation: Conversation, member_info: dict) -> Conversation:
