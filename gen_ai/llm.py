@@ -334,8 +334,8 @@ def generate_response_react(conversation: Conversation) -> tuple[Conversation, l
     for x in log_snapshots:
         x["post_filtered_docs_so_far"] = post_filtered_docs
 
-    if check_for_plain_text(conversation[-1].answer):
-        conversation[-1].answer = live_format_answer(conversation[-1].answer)
+    if check_for_plain_text(conversation.exchanges[-1].answer):
+        conversation.exchanges[-1].answer = live_format_answer(conversation.exchanges[-1].answer)
     return conversation, log_snapshots
 
 
@@ -346,7 +346,7 @@ def live_format_answer(text: str) -> str:
     formatted_text = ""
     for i in range(0, len(sentences), 3):
         chunk = " ".join(sentences[i : i + 3]).strip()
-        formatted_text += chunk + "\n" if chunk else ""
+        formatted_text += chunk + "\n\n" if chunk else ""
 
     return formatted_text.strip()
 
@@ -387,6 +387,58 @@ def check_for_plain_text(text: str) -> bool:
         return False
 
     return True
+
+
+def enhance_question_with_context(member_context, question):
+    caller_name = member_context.get("caller_name", "Subscriber")
+    subject_relationship = member_context.get("subject_relationship", "Self")
+    plan = member_context.get("Plan", "")
+    subject_age = member_context.get("subject_age", "")
+    subject_gender = member_context.get("subject_gender", "")
+    subject_cob_status = member_context.get("subject_cob_status", "")
+
+    gender_pronoun = "female" if subject_gender == "F" else "male" if subject_gender == "M" else ""
+
+    if subject_relationship == "Self":
+        relationship_text = f"The member is a {subject_age} years old {gender_pronoun}. "
+    else:
+        relationship_text = f"The member is a subscriber, their {subject_relationship.lower()} is a {subject_age} years old {gender_pronoun}."
+
+    enhanced_question = f"I would like to know the answer to a question from the following member. {relationship_text} Here is the question: {question.strip()}"
+
+    return enhanced_question
+
+
+def is_legit_question(text):
+    if text.strip().endswith("?"):
+        return True
+
+    question_words = [
+        "who",
+        "what",
+        "when",
+        "where",
+        "why",
+        "how",
+        "is",
+        "are",
+        "does",
+        "do",
+        "can",
+        "could",
+        "should",
+        "would",
+        "will",
+    ]
+
+    first_word = text.strip().split()[0].lower() if text.strip() else ""
+    if first_word in question_words:
+        return True
+
+    if re.match(r"^\d+$", text.strip()) or not re.search(r"[a-zA-Z]", text):
+        return False
+
+    return False
 
 
 def respond(conversation: Conversation, member_info: dict) -> Conversation:
@@ -470,6 +522,11 @@ def respond_api(question: str, member_context_full: PersonalizedData | dict[str,
     """
     if isinstance(member_context_full, PersonalizedData):
         member_context_full = transform_to_dictionary(member_context_full)
+
+    if is_legit_question(question):
+        question = enhance_question_with_context(member_context_full, question)
+    print('QUESTION:', question)
+
     query_state = QueryState(question=question, all_sections_needed=[])
     query_state.original_question = (
         Container.original_question
