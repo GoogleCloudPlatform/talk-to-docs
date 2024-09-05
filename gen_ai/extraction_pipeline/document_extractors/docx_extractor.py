@@ -524,7 +524,8 @@ class DefaultDocxChunker:
         for line in splitted_text:
             if line.strip() == sections[i][1].strip():
                 if current_level == self.chunk_level:
-                    output_file[(section_id, current_section)] = current_text
+                    if current_text.strip() != "" and current_section == "Introduction":
+                        output_file[(section_id, current_section)] = current_text
                     section_id += 1
                 current_level, current_section = sections[i]
                 current_text = ""
