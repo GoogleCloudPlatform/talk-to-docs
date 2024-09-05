@@ -1,4 +1,7 @@
-"""Provides the XmlExtractor class for extracting textual data from XML (.xml) files and organizing the extracted data into separate files for structured document processing."""
+"""
+Provides the XmlExtractor class for extracting textual data from XML (.xml) files and organizing t
+he extracted data into separate files for structured document processing.
+"""
 
 from io import StringIO
 import json
@@ -10,7 +13,8 @@ from gen_ai.extraction_pipeline.document_extractors.base_extractor import BaseEx
 
 
 class XmlExtractor(BaseExtractor):
-    """Extractor class of textual data from XML (.xml) files and chunks sections into separate files.
+    """
+    Extractor class of textual data from XML (.xml) files and chunks sections into separate files.
 
     This class inherits from the `BaseExtractor` and provides specialized
     functionality
@@ -26,9 +30,9 @@ class XmlExtractor(BaseExtractor):
         config_file_parameters (dict[str, str]): Stores the configuration
             parameters.
         xml_extraction (str): Configuration parameter fot the extraction method.
-            Defaults to 'default'.
+            Defaults to "default".
         xml_chunking (str):  Configuration parameter fot the chunking method.
-            Defaults to 'default'.
+            Defaults to "default".
     """
 
     def __init__(self, filepath: str, config_file_parameters: dict[str, str]):
@@ -41,7 +45,15 @@ class XmlExtractor(BaseExtractor):
         self.data = None
 
 
-    def explore(self, root, text, metadata):
+    def explore(self, root: ET, text: list[str], metadata: dict[str, dict[str, str]]):
+        """
+        Recursively explores an XML tree structure, extracting relevant information and appending it to a list.
+
+        Args:
+            root: An XML element representing the current node being explored.
+            text: A list to which extracted information will be appended.
+            metadata: A dictionary containing additional context.
+        """
         if root.attrib:
             for key, value in root.attrib.items():
                 if key == "id":
@@ -68,7 +80,7 @@ class XmlExtractor(BaseExtractor):
 
         Args:
             metadata (dict[str, str]): A dictionary containing document
-              metadata, including a 'filename' key.
+              metadata, including a "filename" key.
             section_name (str): The name of the section being saved.
             output_dir (str): The directory where the generated file should be
               saved.
@@ -123,7 +135,9 @@ class XmlExtractor(BaseExtractor):
         return True
 
     def process(self, output_dir: str) -> bool:
-        """Main function that controls the processing of a XML file, including extraction, metadata creation, chunking, and file saving.
+        """
+        Main function that controls the processing of a XML file, including extraction, 
+        metadata creation, chunking, and file saving.
 
         This method assumes the file is in a suitable XML format for the chunking
         logic.
@@ -161,7 +175,8 @@ class XmlExtractor(BaseExtractor):
         return False
 
 class CustomXmlExtractor(BaseExtractor):
-    """Extractor class of textual data from XML (.xml) files and chunks sections into separate files.
+    """
+    Extractor class of textual data from XML (.xml) files and chunks sections into separate files.
 
     This class inherits from the `BaseExtractor` and provides specialized
     functionality
@@ -177,9 +192,9 @@ class CustomXmlExtractor(BaseExtractor):
         config_file_parameters (dict[str, str]): Stores the configuration
             parameters.
         xml_extraction (str): Configuration parameter fot the extraction method.
-            Defaults to 'default'.
+            Defaults to "default".
         xml_chunking (str):  Configuration parameter fot the chunking method.
-            Defaults to 'default'.
+            Defaults to "default".
     """
 
     def __init__(self, filepath: str, config_file_parameters: dict[str, str]):
@@ -192,7 +207,10 @@ class CustomXmlExtractor(BaseExtractor):
         self.data = None
 
     def modify_file(self):
-        """Modifies an existing file by adding a ProcessGroup block and other blocks if they are not already present within the file."""
+        """
+        Modifies an existing file by adding a ProcessGroup block and other blocks if 
+        they are not already present within the file.
+        """
         with open(self.filepath, "r", encoding="utf-8") as file:
             original_lines = file.readlines()
 
@@ -210,12 +228,13 @@ class CustomXmlExtractor(BaseExtractor):
 
     def explore_xml_tree(
         self,
-        root,
+        root: ET,
         content: dict[str, tuple[str, str, str]],
         name: list[str],
         visited: set[str],
     ):
-        """Recursively explores an XML tree, extracting process information and building content for a structured document.
+        """
+        Recursively explores an XML tree, extracting process information and building content for a structured document.
 
         Args:
             root: The root element of the XML tree.
@@ -254,7 +273,8 @@ class CustomXmlExtractor(BaseExtractor):
     def create_metadata(
         self, key: str, value: tuple[str, str, str], filepath: str
     ):
-        """Generates and saves a JSON metadata file associated with a processed section of content.
+        """
+        Generates and saves a JSON metadata file associated with a processed section of content.
 
         Args:
             key (str): A string representing the filename, document name and section
@@ -279,7 +299,8 @@ class CustomXmlExtractor(BaseExtractor):
             json.dump(metadata, f)
 
     def create_filepath(self, section_name: str, output_dir: str) -> str:
-        """Creates a file-system-friendly path for saving a document section.
+        """
+        Creates a file-system-friendly path for saving a document section.
 
         * Combines higher-level group names.
         * Removes leading digits, whitespace, and hyphens from the section name.
@@ -305,7 +326,8 @@ class CustomXmlExtractor(BaseExtractor):
     def create_file(
         self, content: dict[str, tuple[str, str, str]], output_dir: str
     ):
-        """Creates text files and associated metadata files from a content dictionary.
+        """
+        Creates text files and associated metadata files from a content dictionary.
 
         Args:
             content: A dictionary where keys are hierarchical structures and values
@@ -326,10 +348,11 @@ class CustomXmlExtractor(BaseExtractor):
             self.create_metadata(key, value, filepath)
 
     def process(self, output_dir: str) -> bool:
-        """Main function that controls the processing of a XML file, including extraction, metadata creation, chunking, and file saving.
+        """
+        Main function that controls the processing of a XML file, including extraction, 
+        metadata creation, chunking, and file saving.
 
-        This method assumes the file is in a suitable XML format for the chunking
-        logic.
+        This method assumes the file is in a suitable XML format for the chunking logic.
 
         Args:
             output_dir (str): The directory where the processed files should be
@@ -351,7 +374,8 @@ class CustomXmlExtractor(BaseExtractor):
         return True
 
 class DefaultXmlIngestor:
-    """Default ingestor class that provides methods for extracting content from xml files.
+    """
+    Default ingestor class that provides methods for extracting content from xml files.
 
     Args:
         filepath (str): The path to the json file.
@@ -364,17 +388,22 @@ class DefaultXmlIngestor:
         self.filepath = filepath
 
     def extract_document(self) -> ET.Element | None:
-        """Extracts data from the json file.
+        """
+        Extracts an XML document from a file.
+
+        This method attempts to read an XML file from the specified `filepath` and parse it into an `ET.Element` 
+        object using `ET.iterparse`. It also cleans up the element tags by removing any namespaces.
 
         Returns:
-            
+            ET.Element | None: The root element of the parsed XML document, or `None` if an error occurs during file 
+            opening or parsing.
         """
         try:
             with open(self.filepath, "r", encoding="utf-8") as f:
                 xml = f.read()
             it = ET.iterparse(StringIO(xml))
             for _, el in it:
-                _, _, el.tag = el.tag.rpartition('}')
+                _, _, el.tag = el.tag.rpartition("}")
             return it.root
         except OSError as e:
             print(f"Error: Unable to open or process the file '{self.filepath}' due to an OS error: {e}")
@@ -382,9 +411,10 @@ class DefaultXmlIngestor:
         except ET.ParseError as e:
             print(f"Error: Invalid XML format in '{self.filepath}': {e}")
             return None
-        
+
 class CustomXmlMetadataCreator():
-    """Custom personalized class for creating metadata from xml files.
+    """
+    Custom personalized class for creating metadata from xml files.
 
     Provides a basic metadata structure including the filename.
     """
@@ -394,6 +424,17 @@ class CustomXmlMetadataCreator():
         self.data = data
 
     def parse_transcript_meta(self):
+        """
+        Parses specific metadata from the XML transcript.
+
+        Returns:
+            A dictionary containing extracted metadata:
+                - title (str): The title of the transcript.
+                - date (str): The date of the transcript.
+                - companies (list[str]): A list of companies mentioned in the transcript.
+                - participants (dict[str, str]): A dictionary of participant IDs and their 
+                  information (title, affiliation, name).
+        """
         metadata = {}
         root = self.data.find("meta")
         for element in root:
@@ -415,15 +456,23 @@ class CustomXmlMetadataCreator():
                     name = participant.text
                     participant_info = ""
                     if title:
-                        participant_info += f'{title}'
+                        participant_info += f"{title}"
                     if affiliation:
-                        participant_info += f', {affiliation}'
+                        participant_info += f", {affiliation}"
                     participant_info += f"\n{name}"
                     participants[participant_id] = participant_info
                 metadata["participants"] = participants
         return metadata
 
-    def create_metadata(self) -> dict[str, str]:
+    def create_metadata(self) -> tuple[dict[str, str], dict[str, str]]:
+        """
+        Creates a combined metadata dictionary.
+
+        Returns:
+            A tuple containing two dictionaries:
+                - The first dictionary contains basic file information and some parsed transcript metadata.
+                - The second dictionary contains the full parsed transcript metadata.
+        """
         metadata = {
             "data_source": "transcipt",
             "symbols": "",
@@ -443,4 +492,3 @@ class CustomXmlMetadataCreator():
         metadata["section_name"] = transcript_metadata["title"]
         metadata["date"] = transcript_metadata["date"]
         return metadata, transcript_metadata
-

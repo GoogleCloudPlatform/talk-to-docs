@@ -1,4 +1,7 @@
-"""Provides the HtmlExtractor class for extracting textual data from HTML files and organizing the extracted data into separate files for structured document processing."""
+"""
+Provides the HtmlExtractor class for extracting textual data from HTML files and organizing the
+extracted data into separate files for structured document processing.
+"""
 
 import json
 import os
@@ -26,9 +29,9 @@ class HtmlExtractor(BaseExtractor):
         config_file_parameters (dict[str, str]): Stores the configuration
           parameters.
         html_extraction (str): Configuration parameter fot the extraction
-          method. Defaults to 'default'.
+          method. Defaults to "default".
         html_chunking (str):  Configuration parameter fot the chunking method.
-          Defaults to 'default'.
+          Defaults to "default".
     """
 
     def __init__(self, filepath: str, config_file_parameters: dict[str, str]):
@@ -52,7 +55,7 @@ class HtmlExtractor(BaseExtractor):
 
         Args:
             metadata (dict[str, str]): A dictionary containing document
-              metadata, including a 'filename' key.
+              metadata, including a "filename" key.
             section_name (str): The name of the section being saved.
             output_dir (str): The directory where the generated file should be
               saved.
@@ -108,7 +111,7 @@ class HtmlExtractor(BaseExtractor):
         else:
             ingestor = DefaultHtmlIngestor(self.filepath)
         self.data = ingestor.extract_document()
-        
+
         patterns = {
             CustomMetadataCreatorOne:r"(\d{10}-\d{2}-\d{6})",
             CustomMetadataCreatorTwo:r"sa_story_\d{7}",
@@ -187,7 +190,7 @@ class DefaultHtmlIngestor:
         if new_text:
             return new_text
         return None
-    
+
     @staticmethod
     def extract_from_html_using_markdownify(html_text: str) -> str | None:
         """Converts an HTML string to Markdown format.
@@ -204,10 +207,10 @@ class DefaultHtmlIngestor:
         except TypeError as e:
             print(f"An error occurred during conversion: {e}")
             return None
-    
+
     def extract_document(self) -> str:
         """
-        Extracts text from a file specified by the 'filepath' attribute and 
+        Extracts text from a file specified by the "filepath" attribute and 
         converts it into Markdown format.
 
         Args:
@@ -224,16 +227,15 @@ class DefaultHtmlIngestor:
             with open(self.filepath, "r", encoding="utf-8") as f:
                 data = f.read()
             markdowned_text = DefaultHtmlIngestor.extract_from_html_using_markdownify(str(data))
-            
             return markdowned_text
-            
-        except IOError:
+
+        except IOError as e:
             print(f"Error: An error occurred while reading the file: {e}")
-            raise IOError(f"Error: An error occurred while reading the file: {e}")
+            raise IOError(f"Error: An error occurred while reading the file: {e}") from e
 
         except UnicodeDecodeError as e:
             print(f"Error: File is not in UTF-8 encoding: {e}")
-            raise UnicodeDecodeError(f"Error: File is not in UTF-8 encoding : {e}")
+            raise UnicodeDecodeError(f"Error: File is not in UTF-8 encoding : {e}") from e
 
 
 class CustomHtmlIngestor:
@@ -256,7 +258,7 @@ class CustomHtmlIngestor:
         """Processes a Custom HTML file and returns its contents in Markdown format.
 
         Parses the HTML file, removes hidden divs and empty tables, and then 
-        converts the remaining HTML structure into Markdown using the 'markdownify' library.
+        converts the remaining HTML structure into Markdown using the "markdownify" library.
 
         Args:
             None
@@ -270,33 +272,32 @@ class CustomHtmlIngestor:
         """
         try:
             with open(self.filepath, "r", encoding="utf-8") as f:
-                data = BeautifulSoup(f, 'html.parser')
+                data = BeautifulSoup(f, "html.parser")
             for div in data.find_all("div", style="display:none"):
                 div.decompose()
-            for table in data.find_all('table'):
-                all_cells_empty = all(cell.get_text(strip=True) == '' for cell in table.find_all(['td', 'th']))
+            for table in data.find_all("table"):
+                all_cells_empty = all(cell.get_text(strip=True) == "" for cell in table.find_all(["td", "th"]))
                 if all_cells_empty:
                     table.decompose()
-            for script_tag in data.find_all('script'):
+            for script_tag in data.find_all("script"):
                 script_tag.decompose()
- 
-            for link in data.find_all('a'):
+
+            for link in data.find_all("a"):
                 text_content = link.text
                 if "table of contents" in text_content.lower():
                     link.decompose()
-     
-            markdowned_text = markdownify.markdownify(str(data), strip=['a'])
-            markdowned_text = re.sub(r"[\u00A0\u2007\u202F]", "", markdowned_text)
 
+            markdowned_text = markdownify.markdownify(str(data), strip=["a"])
+            markdowned_text = re.sub(r"[\u00A0\u2007\u202F]", "", markdowned_text)
             return markdowned_text
-            
-        except IOError:
+
+        except IOError as e:
             print(f"Error: An error occurred while reading the file: {e}")
-            raise IOError(f"Error: An error occurred while reading the file: {e}")
+            raise IOError(f"Error: An error occurred while reading the file: {e}") from e
 
         except UnicodeDecodeError as e:
             print(f"Error: File is not in UTF-8 encoding: {e}")
-            raise UnicodeDecodeError(f"Error: File is not in UTF-8 encoding : {e}")
+            raise UnicodeDecodeError(f"Error: File is not in UTF-8 encoding : {e}") from e
 
 
 class DefaultMetadataCreator:
@@ -366,7 +367,7 @@ class CustomMetadataCreatorOne(DefaultMetadataCreator):
                         records[current_record["id"]]=current_record
                     current_record = {}
                 else:
-                    key, value = line.split('\t', 1)
+                    key, value = line.split("\t", 1)
                     current_record[key] = value.strip()
 
         if current_record:
@@ -446,7 +447,6 @@ class CustomMetadataCreatorTwo(DefaultMetadataCreator):
         tree = ET.parse(file_path)
         root = tree.getroot()
         xplore(root, records)
-        
         return records
 
     def create_metadata(self) -> dict[str, str]:
