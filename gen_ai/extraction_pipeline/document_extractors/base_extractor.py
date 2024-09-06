@@ -1,4 +1,7 @@
-"""This module establishes the core 'BaseExtractor' abstract base class, laying the foundation for specialized data extraction classes."""
+"""
+This module establishes the core 'BaseExtractor' abstract base class, laying the foundation for
+specialized data extraction classes.
+"""
 
 from abc import ABC, abstractmethod
 

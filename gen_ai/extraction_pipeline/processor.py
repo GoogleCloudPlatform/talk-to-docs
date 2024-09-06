@@ -154,7 +154,7 @@ def process_gsbucket(
         if blob.time_created > since_timestamp:
             basename = os.path.basename(blob.name)
             blob_names.append(basename)
-    
+
     with tempfile.TemporaryDirectory() as tmp_directory:
         directory = os.path.join(directory, "")
         results = transfer_manager.download_many_to_path(
@@ -269,7 +269,10 @@ def main():
         "-i", "--input", help="Input directory or gs bucket", required=True
     )
     parser.add_argument(
-        "-o", "--output", help="Output directory, gs bucket or datastore (output_data, gs://t2x_bucket or datastore:t2x_datastore)", default="output_data"
+        "-o", 
+        "--output", 
+        help="Output directory, gs bucket or datastore (output_data, gs://t2x_bucket or datastore:t2x_datastore)",
+        default="output_data"
     )
     args = parser.parse_args()
 

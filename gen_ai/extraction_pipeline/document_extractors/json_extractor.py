@@ -40,7 +40,7 @@ class DefaultJsonExtractor:
                 data = json.load(f)
                 return data
         except json.JSONDecodeError as e:
-            raise json.JSONDecodeError(f"Error decoding JSON data: {e}")
+            raise json.JSONDecodeError(f"Error decoding JSON data: {e}", doc=self.filepath, pos=0)
 
 
 class DefaultJsonMetadataCreator:
@@ -98,7 +98,8 @@ class CustomJsonMetadataCreatorOne(DefaultJsonMetadataCreator):
     """
 
     def __init__(self, filepath: str, data: dict[str, Any]):
-        self.filepath = filepath
+        super().__init__(filepath, data)
+        # self.filepath = filepath
         self.data = data.get("metadata")
         if not self.data:
             raise TypeError("Wrong type of KC json data")
@@ -108,7 +109,7 @@ class CustomJsonMetadataCreatorOne(DefaultJsonMetadataCreator):
 
         Checks for a valid content type ("text/html") and extracts relevant
         metadata
-        fields from the JSON data. Handles potential 'None' values within the
+        fields from the JSON data. Handles potential "None" values within the
         data.
 
         Args:
@@ -308,16 +309,17 @@ class DefaultJsonChunker:
           data.
     """
 
-    def __init__(self, filepath: str, data: dict[str, Any]):
+    def __init__(self, filepath: str, data: dict[str, Any], config_file_parameters: dict[str, str]):
         self.filepath = filepath
         self.data = data
+        self.raw_files_path = config_file_parameters.get("raw_files_path", "raw_files")
 
     def chunk_the_document(self) -> dict[tuple[str, str], str]:
         """Creates chunks from the JSON data.
 
         Returns:
             dict[tuple[str, str], str]:  A dictionary where keys are tuples
-              of the form ('', <original JSON key>) and values are the
+              of the form ("", <original JSON key>) and values are the
               corresponding values from the original JSON data.
         """
         return {("", key): value for key, value in self.data.items()}
@@ -334,14 +336,14 @@ class CustomJsonChunkerOne(DefaultJsonChunker):
 
         Returns:
             dict[tuple[str, str], str]: A dictionary containing a single chunk.
-                The key is a tuple ('', <section name>) and the value is the
+                The key is a tuple ("", <section name>) and the value is the
                 processed text (section name prepended to the extracted article
                 text).
 
         Raises:
             TypeError: If the "article" key is not found in the JSON data.
         """
-        
+
         # Check content type for "article". Need to decide if necessary
         output_data = {("", ""): ""}
         mime_type = self.data["metadata"]["content"].get("mimeType")
@@ -359,7 +361,7 @@ class CustomJsonChunkerOne(DefaultJsonChunker):
             output_data = {("", section_name): processed_text}
         elif "pdf" in mime_type:
             #TODO: come up with better storage
-            filepath = f"raw_files/{self.data.get('name')}.pdf"
+            filepath = f"{self.raw_files_path}/{self.data.get('name')}.pdf"
             extractor = DefaultPdfExtractor(filepath)
             elements = extractor.extract_document(True)
             processed_text = " \n".join([el.text for el in elements if el not in ("Footer", "Header")])
@@ -369,7 +371,7 @@ class CustomJsonChunkerOne(DefaultJsonChunker):
             processed_text = f"{section_name}\n{processed_text}"
             output_data = {("", section_name): processed_text}
         elif "word" in mime_type:
-            filepath = f"raw_files/{self.data.get('name')}.docx"
+            filepath = f"{self.raw_files_path}/{self.data.get('name')}.docx"
             extractor = DefaultDocxExtractor(filepath)
             document = extractor.extract_document()
             raw_text = extractor.extract_text()
@@ -474,81 +476,10 @@ class CustomJsonChunkerTwo(DefaultJsonChunker):
 
 
 class CustomJsonChunkerThree(CustomJsonChunkerTwo):
-    def chunk_the_document_auto(self) -> dict[tuple[str, str], str]:
-        """Creates text chunks from a Custom B360 JSON document.
+    """Parses Custom B360 JSON data and creates text chunks organized by benefit.
 
-        Returns:
-            dict[tuple[str, str], str]: A dictionary where keys are tuples of
-                (benefit ID, section name), and values are the corresponding
-                concatenated text chunks.
-        """
-        print("CustomJsonChunkerThree")
-        def strip_key(parent, key):
-            if key.startswith(parent):
-                return key[len(parent):]
-            return key
-
-        def extract_from_string(item):
-            return DefaultHtmlIngestor.extract_from_html_using_markdownify(item)
-
-        def extract_from_list(parent, item):
-            result = ""
-            for value in item:
-                if isinstance(value, list):
-                    result += f"{extract_from_list(parent, value)}" + "\n"
-                elif isinstance(value, dict):
-                    result += f"{extract_from_dict(parent, value)}" + "\n"
-                elif isinstance(value, str):
-                    result += extract_from_string(value)
-            return result
-
-        def extract_from_dict(parent: str, item):
-            result = ""
-            if item is None:
-                print(parent)
-                print(item)
-            for key, value in item.items():
-                if value:
-                    if isinstance(value, list):
-                        result += f"{extract_from_list(parent, value)}" + "\n"
-                    elif isinstance(value, dict):
-                        result += f"{extract_from_dict(parent, value)}" + "\n"
-                    elif isinstance(value, str):
-                        result += f"{strip_key(parent, key)}: {extract_from_string(value)}\n"
-            return result
-        
-        output_data = {}
-        benefit_id = self.data["BenefitPlan"].get("BenefitPlanID")
-        for item in self.data["BenefitPlan"]['BenefitPlanCSRSection']['BenefitPlanCSR']:
-            section_name = item.get("BenefitPlanCSRName")
-            if section_name:
-                text = extract_from_dict("BenefitPlanCSR", item)
-            if (benefit_id, section_name) not in output_data:
-                output_data[(benefit_id, section_name)] = text
-            else:
-                print(section_name)
-
-        for item in self.data["BenefitPlan"]['BenefitPlanCostShareSections']['PlanCostShareSection']:
-            text = ""
-            section_name = item.get("PlanCostShareSectionName")
-            if section_name:
-                text = extract_from_dict("PlanCostShare", item)
-            if (benefit_id, section_name) not in output_data:
-                output_data[(benefit_id, section_name)] = text
-            else:
-                print(section_name)
-
-        for item in self.data["BenefitPlan"]['BenefitPlanSections']['BenefitSection']:
-            section_name = item.get("BenefitSectionName")
-            if section_name:
-                text = extract_from_dict("Benefit", item)
-            if (benefit_id, section_name) not in output_data:
-                output_data[(benefit_id, section_name)] = text
-            else:
-                print(section_name)
-        return output_data
-    
-
+    Inherits from the DefaultJsonChunker class.
+    """
     def chunk_the_document(self) -> dict[tuple[str, str], str]:
         """Creates text chunks from a Custom B360 JSON document.
 
@@ -609,21 +540,21 @@ class CustomJsonChunkerThree(CustomJsonChunkerTwo):
                             result += "Limits and Exceptions: "
                         result += f"{extract_from_string(value)}\n"
             return result
-        
+
         output_data = {}
         benefit_id = self.data["BenefitPlan"].get("BenefitPlanID")
         text = ""
         section_name = "Policy Data"
 
-        for item in self.data['BenefitPlan']['BenefitPlanCSRSection']['BenefitPlanCSR']:
+        for item in self.data["BenefitPlan"]["BenefitPlanCSRSection"]["BenefitPlanCSR"]:
             text += item["BenefitPlanCSRName"] + "\n"
             for information in item["BenefitPlanCSRInformation"]:
                 description = information["BenefitPlanCSRInformationTypeLanguageDescription"]
                 text += DefaultHtmlIngestor.extract_from_html_using_markdownify(description) + "\n"
             text += "\n\n"
         output_data[(benefit_id, section_name)] = text
-       
-        for item in self.data["BenefitPlan"]['BenefitPlanCostShareSections']['PlanCostShareSection']:
+
+        for item in self.data["BenefitPlan"]["BenefitPlanCostShareSections"]["PlanCostShareSection"]:
             section_name = item.get("PlanCostShareSectionName")
             text = f"{section_name}\n"
             if section_name:
@@ -631,20 +562,21 @@ class CustomJsonChunkerThree(CustomJsonChunkerTwo):
                     text += extract_from_list(item["PlanCostShare"])
                 if item.get("PlanCostShareCSR"):
                     text += extract_from_list(item["PlanCostShareCSR"])
-            
+
             if (benefit_id, section_name) not in output_data:
                 output_data[(benefit_id, section_name)] = text
             else:
                 print(section_name)
 
-
-        for item in self.data["BenefitPlan"]['BenefitPlanSections']['BenefitSection']:
+        for item in self.data["BenefitPlan"]["BenefitPlanSections"]["BenefitSection"]:
             section_name = item.get("BenefitSectionName")
             text = f"{section_name}\n"
             if section_name:
                 if item.get("Benefit"):
-                    text = extract_from_list(item["Benefit"])
-            
+                    text += extract_from_list(item["Benefit"])
+                if item.get("BenefitCSR"):
+                    text += extract_from_list(item["BenefitCSR"])
+
             if (benefit_id, section_name) not in output_data:
                 output_data[(benefit_id, section_name)] = text
             else:
@@ -652,9 +584,8 @@ class CustomJsonChunkerThree(CustomJsonChunkerTwo):
         deductibles_text = output_data.get((benefit_id, "Deductibles"))
         for benefit_id, section_name in output_data:
             if section_name != "Deductibles":
-                output_data[(benefit_id, section_name)] += deductibles_text 
+                output_data[(benefit_id, section_name)] += deductibles_text
         return output_data
-
 
 # ------------------------------------------------------------------
 
@@ -689,9 +620,9 @@ class JsonExtractor(BaseExtractor):
         config_file_parameters (dict[str, str]): Stores the configuration
           parameters.
         json_extraction (str): Configuration parameter fot the extraction
-          method. Defaults to 'default'.
+          method. Defaults to "default".
         json_chunking (str):  Configuration parameter fot the chunking method.
-          Defaults to 'default'.
+          Defaults to "default".
     """
 
     def __init__(self, filepath: str, config_file_parameters: dict[str, str]):
@@ -702,6 +633,7 @@ class JsonExtractor(BaseExtractor):
         self.json_chunking = config_file_parameters.get(
             "json_chunking", "default"
         )
+        self.raw_files_path = config_file_parameters.get("raw_files_path", "raw_files")
         self.data = None
 
     def create_filepath(
@@ -711,7 +643,7 @@ class JsonExtractor(BaseExtractor):
 
         Args:
             metadata (dict[str, str]): A dictionary containing document
-              metadata, including a 'filename' key.
+              metadata, including a "filename" key.
             section_name (str): The name of the section being saved.
             output_dir (str): The directory where the generated file should be
               saved.
@@ -752,7 +684,9 @@ class JsonExtractor(BaseExtractor):
 
         for (section_id, section_name), context in document_chunks.items():
             filepath = self.create_filepath(metadata, section_name, output_dir)
-
+            if not bool(re.search(r"[a-zA-Z0-9]", context)):
+                continue
+            context = re.sub(r'(\s)\1+', r'\1', context)
             with open(filepath + ".txt", "w", encoding="utf-8") as f:
                 f.write(context)
             temp_metadata = metadata.copy()
@@ -766,7 +700,9 @@ class JsonExtractor(BaseExtractor):
         return True
 
     def process(self, output_dir: str) -> bool:
-        """Main function that controls the processing of a JSON document, including extraction, metadata creation, chunking, and file saving.
+        """
+        Main function that controls the processing of a JSON document, including extraction,
+        metadata creation, chunking, and file saving.
 
         This function coordinates the key steps for processing a JSON document.
         It handles document extraction, metadata generation, applies  document
@@ -783,16 +719,17 @@ class JsonExtractor(BaseExtractor):
         """
         extractor = DefaultJsonExtractor(self.filepath)
         self.data = extractor.extract_document()
+        config_file_parameters = {"raw_files_path": self.raw_files_path}
         if self.json_chunking == "custom":
             kc_name = re.match(r"^KM\d{7}\.json", os.path.basename(self.filepath))
             if "BenefitPlan" in self.data and not kc_name:
                 chunking = "b360_new"
             else:
                 chunking = "kc"
-            config_file_parameters = {"json_chunking": chunking}
+            config_file_parameters.update({"json_chunking": chunking})
             extractor = JsonExtractor(self.filepath, config_file_parameters)
             return extractor.process(output_dir)
-        
+
         # for b360 use loop
         elif self.json_chunking == "b360":
             for category_data in self.data["benefits"]:
@@ -805,7 +742,7 @@ class JsonExtractor(BaseExtractor):
 
                 document_chunker = CHUNKER_MAP.get(
                     self.json_chunking, DefaultJsonChunker
-                )(self.filepath, category_data)
+                )(self.filepath, category_data, config_file_parameters)
                 document_chunks = document_chunker.chunk_the_document()
                 if not self.create_files(document_chunks, metadata, output_dir):
                     return False
@@ -819,7 +756,7 @@ class JsonExtractor(BaseExtractor):
 
             document_chunker = CHUNKER_MAP.get(
                 self.json_chunking, DefaultJsonChunker
-            )(self.filepath, self.data)
+            )(self.filepath, self.data, config_file_parameters)
             document_chunks = document_chunker.chunk_the_document()
             if not self.create_files(document_chunks, metadata, output_dir):
                 return False
@@ -833,7 +770,7 @@ class JsonExtractor(BaseExtractor):
 
             document_chunker = CHUNKER_MAP.get(
                 self.json_chunking, DefaultJsonChunker
-            )(self.filepath, self.data)
+            )(self.filepath, self.data, config_file_parameters)
             document_chunks = document_chunker.chunk_the_document()
             if not document_chunks:
                 return False
