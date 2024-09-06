@@ -76,8 +76,8 @@ Sample `json` file from pdf/docs (content is not parsed, so a postprocessing ste
 }
 ```
 
-Right now, for the post-processing step for `docx` and `pdf` files you need to have them locally in the `raw_files` directory.
-This directory **must be** in the current directory from where you are executing the script.
+Right now, for the processing `docx` and `pdf` files you need to have them locally in the directory specified as  `raw_files_path` in the `config.yaml`.
+
 
 ## Batch mode
 Batch mode can process both local directories and GCS buckets. And the result can be uploaded to the GCS bucket automatically or datastore can be updated through BQ table if necessary. Arguments you need to pass are `mode` and `input`. If no `output` is provided, default value is "output_dir" which is created automatically. Input directory can be local directory or GCS bucket directory.

@@ -125,17 +125,17 @@ class CustomJsonMetadataCreatorOne(DefaultJsonMetadataCreator):
         """
         metadata = {
             "data_source": "kc",
-            "policy_number": self.data['structData'].get("policy_number", ""),
+            "policy_number": "",
             "set_number": "",
-            "effective_date": self.data['structData'].get("effective_date", ""),
+            "effective_date": "",
             "cancellation_date": "",
             "original_filepath": "",
             "section_name": "",
             "plan_name": "",
             "policy_title": "",
-            "url": self.data['structData'].get("url", ""),
-            "doc_identifier": self.data['structData'].get("doc_identifier", ""),
-            "category_name": self.data['structData'].get("doc_cat", ""),
+            "url": "",
+            "doc_identifier": "",
+            "category_name": "",
             "benefit_id": "",
             "filename": "",
         }
