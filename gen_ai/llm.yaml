@@ -29,7 +29,7 @@ vais_location: us # one of us, eu, global
 use_prev_and_next_pieces: 1 # integer between 0 and 3
 api_mode: stateful
 personalization: true
-temperature: 0.5
+temperature: 0
 max_output_tokens: 4000
 max_context_size: 1025000
 max_rounds: 1
@@ -500,16 +500,19 @@ simple_react_chain_prompt: |
     - You will be answering a question in one or multiple rounds. You do the subsequent round only if the answer is not complete and you need additional information.  
     - Write the plan of answer and reasoning into "plan_and_summaries".
     - In the "answer" field give the best answer you can based on the information available. If any follow up questions needed, include it in "additional_information_to_retrieve" as instructed below.
+    - Ensure that the follow-up question being generated include the medical condition referred to in the question. For example: if the original question is about acupuncture coverage, "additional_information_to_retrieve" should include word "acupuncture". For example: "additional_information_to_retrieve" will contain a question such as "what are INN and OON benefits for acupuncture?"
     - Reason about what information is currently missing to answer the question completely and factually using the current context and ask a follow up question that will cause you to fetch additional documents to complete your request. Add the question to "additional_information_to_retrieve". 
     - Look at the question and answer and derive the "confidence_score" for the answer, indicating how confident you are in the answer correctness.
-    - If the question is related to benefits coverage, make sure the answer contains information (if applicable) about:
+    - If the question is related to benefits coverage, make sure the answer contains information (if applicable) in the sequence specified below:
+      - coverage of the benefit,
       - INN and OON benefits, 
-      - prior authorization requirements, 
+      - prior authorization requirements,
+      - deductibles for individual and family, 
       - limitations and exceptions, 
-      - deductibles for individual and family,
       - duration of coverage or potential coverage,
       - If any of the listed above are missing, "confidence_score" needs to be penalized,
       - Make sure if those are missing, you ask for these details in a follow up question in "additional_information_to_retrieve" field.
+      - To make the response readable, use bulleted list format.
     - Use reasoning and step-by-step thinking, write a "answer_confidence_resoning" to justify your "confidence_score" response.
     - Not all Documents in context will be actually used for generating the answer, so write only the relevant information into the field "context_used". Use DOCUMENT SECTION NAME from context and write into "context_used" the list of section names. Ues EXACT (!) section names from DOCUMENT SECTION NAME. The field "context_used" MUST BE (!) valid list of strings.
     - Make sure the response does not include contradictory information.
@@ -588,11 +591,14 @@ simple_react_chain_prompt: |
       - If the question refers to a routine benefit, then consider it as a preventive benefit.
       - Sometimes the INN benefits may be provided for multiple Tiers, such as Tier1, Tier2 etc. Only if the tiered benefits are shown in the document then include the benefits for all the tiers otherwise display the benefits verbatim.
       - Self reflect and triple check your work if you are correctly displaying the preventive or diagnostic benefits.
-      - To determine if a service is not covered usually the document contains a phrase such as "About Your Benefits" section shows as "Not Applicable". However, if the service is covered then it will shows the benefits.
+      - To determine if a service is not covered usually the document contains a phrase such as "Not Applicable" in the "About Your Benefits" section.
       - If you are unable to answer a question, do not direct the member to plan documents or HR department etc. Instead look for the key words with in the data corpus to find a relevant answer.
       - If the (b360_context) is not available, then provide the responses from (kc_context) only. Do not use information from the <Examples> below to generate the answers. The answers have to be grounded in the provided documents.
       - As far as possible, clearly articulate and present INN and OON benefits seperately and do not merge INN and OON benefits together.
       - Sometimes important information is captured in the relevant context after an '*' symbol. This indicates that there are improtant caveats that should be considered. Output any such caveats appearing after an '*' verbatim, in the response. 
+      - Pay special focus on the format of your responses. Structure them in a clear bulleted list format, so that they are easy to read.
+      - If the response contains multiple sentences, group them in a logical fashion and present them in an easy to read, bulleted list format.
+      - If a benefit is not covered or not applicable, then do not include the deductible information in your response. For example, if the OON benefits are not covered, then do not include deductible information for OON.
   </Suggestions>
 
   <Examples>
@@ -636,7 +642,7 @@ simple_react_chain_prompt: |
           40% coinsurance After you pay the deductible. 
           You must get prior authorization for genetic testing. Please submit the request at least 5 business days before the appointment. $500.00 penalty if you don't get prior authorization
           Limits and Exceptions:
-          You may have to pay an additional copay, deductible, or coinsurance for services provided in a doctor’s office. No coverage for: Automated breast ultrasound Computeraided detection (CAD) Computeraided tactile breast imaging Electrical impedance scanning (EIS) Magnetic resonance elastography (MRE) Scintimammography.
+          You may have to pay an additional copay, deductible, or coinsurance for services provided in a doctor's office. No coverage for: Automated breast ultrasound Computeraided detection (CAD) Computeraided tactile breast imaging Electrical impedance scanning (EIS) Magnetic resonance elastography (MRE) Scintimammography.
           Mammogram is covered with no age or frequency limits.
         Deductibles:
         Annual Deductible
