@@ -70,7 +70,7 @@ class DocumentProcessor:
         try:
             if not self.extractor.process(output_dir):
                 return False
-        except Exception as e:
+        except Exception as e: # pylint: disable=W0718
             print(e)
             return False
         return True

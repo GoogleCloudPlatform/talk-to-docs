@@ -1,4 +1,7 @@
-"""Provides the PdfExtractor class for extracting textual data from PDF files and organizing the extracted data into separate files for structured document processing."""
+"""
+Provides the PdfExtractor class for extracting textual data from PDF files and organizing the extracted data
+into separate files for structured document processing.
+"""
 
 import json
 import os
@@ -110,7 +113,9 @@ class PdfExtractor(BaseExtractor):
         return True
 
     def process(self, output_dir: str) -> bool:
-        """Main function that controls the processing of a .pdf document, including extraction, metadata creation, chunking, and file saving.
+        """
+        Main function that controls the processing of a .pdf document, including extraction, metadata creation,
+        chunking, and file saving.
 
         This function coordinates the key steps for processing a .pdf document.
         It handles document extraction, metadata generation, applies  document
@@ -127,10 +132,10 @@ class PdfExtractor(BaseExtractor):
         """
         if self.pdf_extraction == "with_tables":
             extractor = DefaultPdfExtractor(self.filepath)
-            self.elements = extractor.extract_document(True)
+            self.elements = extractor.extract_document(self.config_file_parameters)
         elif self.pdf_extraction == "docai":
             extractor = DocaiPdfExtractor(self.filepath)
-            self.elements = extractor.extract_document()
+            self.elements = extractor.extract_document(self.config_file_parameters)[0]
         else:
             extractor = DefaultPdfExtractor(self.filepath)
             self.elements = extractor.extract_document()
@@ -145,10 +150,12 @@ class PdfExtractor(BaseExtractor):
         if self.pdf_chunking == "by_title":
             document_chunker = DefaultPdfChunker(self.elements, by_title=True)
         elif self.pdf_chunking == "semantic":
-            if self.pdf_extraction != "default" or self.pdf_extraction != "with_tables":
+            if self.pdf_extraction != "default" and self.pdf_extraction != "with_tables":
                 print("Semantic chunking is only for unstructured extraction (default or with_tables)")
                 return False
-            whole_document_text = " \n".join([el.text for el in self.elements if el.category not in ("Footer", "Header")])
+            whole_document_text = " \n".join(
+                [el.text for el in self.elements if el.category not in ("Footer", "Header")]
+            )
             document_chunker = SemanticPdfChunker(whole_document_text, "textembedding-gecko@003")
         elif self.pdf_chunking == "docai":
             document_chunker = DocaiPdfChunker(self.elements, chunk_size=1000, overlap=100)
@@ -187,15 +194,17 @@ class DefaultPdfExtractor:
             url=None,
         )
 
-    def extract_document(self, with_tables: bool = False) -> list[Text]:
+    def extract_document(self, config: dict[str, str] = None) -> list[Text]:
         """Extracts the Document object from the pdf file.
 
         Args:
-            with_tables (bool): The option of extractor to use.
+            config (dict[str, str], optional): A dictionary containing configuration options.
+                Defaults to None.
+
         Returns:
-            list[Text]: The extracted Text objects.
+            list[Text]: A list of extracted Text objects representing the textual content of the PDF.
         """
-        if with_tables:
+        if config and config.get("pdf_extraction") == "with_tables":
             return self.extract_using_unstructured(strategy="hi_res")
         return self.extract_using_unstructured(strategy="fast")
 
@@ -210,16 +219,16 @@ class DocaiPdfExtractor(DefaultPdfExtractor):
         filepath (str): The path to the pdf file.
     """
 
-    def __init__(self, filepath: str):
-        super().__init__(filepath)
-
-    def extract_document(self) -> list[Text]:
+    def extract_document(self, config: dict[str, str] = None) -> list[str]:
         """Extracts the Document object from the pdf file.
+        Args:
+            config (dict[str, str], optional): A dictionary containing configuration options.
+                Defaults to None.
 
         Returns:
-            TODO: Document: The extracted Document object.
+            list[Text]: A list of extracted strings representing the textual content of the PDF.
         """
-        return process_document_in_chunks(self.filepath)
+        return process_document_in_chunks(self.filepath, config)
 
 
 class DefaultPdfMetadataCreator:
@@ -342,9 +351,7 @@ class DocaiPdfChunker(DefaultPdfChunker):
 
         output_chunks = {}
         for doc in self.elements:
-            print(doc)
             chunks = text_splitter.split_text(doc)
-            print(chunks)
             doc_name = doc.split("\n")[0]
             for i in range(len(chunks)):
                 chunk_id = f"{doc_name}_{i}"
