@@ -390,14 +390,13 @@ def check_for_plain_text(text: str) -> bool:
 
 
 def enhance_question_with_context(member_context, question):
-    caller_name = member_context.get("caller_name", "Subscriber")
-    subject_relationship = member_context.get("subject_relationship", "Self")
-    plan = member_context.get("Plan", "")
-    subject_age = member_context.get("subject_age", "")
-    subject_gender = member_context.get("subject_gender", "")
-    subject_cob_status = member_context.get("subject_cob_status", "")
-
-    gender_pronoun = "female" if subject_gender == "F" else "male" if subject_gender == "M" else ""
+    subject_relationship = member_context.get("relationship", "Self")
+    subject_age = member_context.get("age", "")
+    subject_gender = member_context.get("gender", "")
+    if subject_gender.upper() in ["F", "M"]:
+        gender_pronoun = "female" if subject_gender == "F" else "male" if subject_gender == "M" else ""
+    else:
+        gender_pronoun = subject_gender
 
     if subject_relationship == "Self":
         relationship_text = f"The member is a {subject_age} years old {gender_pronoun}. "
@@ -525,7 +524,7 @@ def respond_api(question: str, member_context_full: PersonalizedData | dict[str,
 
     if is_legit_question(question):
         question = enhance_question_with_context(member_context_full, question)
-    print('QUESTION:', question)
+    print("QUESTION:", question)
 
     query_state = QueryState(question=question, all_sections_needed=[])
     query_state.original_question = (
