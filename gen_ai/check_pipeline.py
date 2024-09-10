@@ -32,6 +32,7 @@ from gen_ai.check_recall import (
     prepare_semantic_score_calculation,
 )
 from gen_ai.common.eval_utils import enhance_question
+from gen_ai.llm import enhance_question_with_context
 from gen_ai.common.ioc_container import Container
 from gen_ai.llm import respond_api
 
@@ -127,6 +128,35 @@ def compute_gt_scores(session_id: str, df: pd.DataFrame) -> pd.DataFrame:
     return df_joined
 
 
+def get_fake_df():
+    ls = [
+        "Do I have other options to continue coverage after I've turned 26?",
+        "Does my plan cover acupuncture for lower back pain?",
+        "Is urgent care covered?",
+        "It has been a few months since my mastectomy was performed. Do I still qualify for supply coverage? Can I still get a bra now?",
+        "My doctor said the code she was billing is 77061; can you confirm that's covered?",
+        "Does my plan cover acupuncture for lower back pain?",
+        "what happens after I submit the form ?",
+        "Will it also cover the associated anesthesia?",
+    ]
+    result = []
+    import json
+
+    for x in ls:
+        result.append(
+            (
+                x,
+                "001acis",
+                "931906",
+                json.loads(
+                    '{"age":"28","dob":"01/08/1996","full_name":"harry potter","gender":"male","member_id":"34343","policy_number":"931906","relationship":"self","set_id":"001acis","subject_cob":"commercial","subject_cob_status":"yes"}'
+                ),
+            )
+        )
+    df = pd.DataFrame(result, columns=["question", "set_number", "policy_number", "Context"])
+    return df
+
+
 def run_pipeline(
     mode: Literal["batch", "step"] = "step",
     csv_path: str | None = None,
@@ -160,25 +190,25 @@ def run_pipeline(
     """
 
     for _ in range(n_calls):
-        session_id = str(uuid.uuid4())
+        session_id = "123-misha-2346"
         Container.logger().info(msg=f"Session id is: {session_id}")
         Container.comments = comments
         if mode == "batch":
-            df = get_input_df(csv_path)
-            df = df.sort_values(by=["Multi-turn or Single-turn", "Scenario/Question #"])
-            member_id = None
+            df = get_fake_df()
+            # df = df.sort_values(by=["Multi-turn or Single-turn", "Scenario/Question #"])
+            member_id = "person-2"
             for i, row in df.iterrows():
-                if row["Multi-turn or Single-turn"] == "Single-turn":
-                    print("SINGLE-TUUUUUUUUUURN")
-                    print(row["Scenario/Question #"])
-                    member_id = str(uuid.uuid4())
-                else:
-                    print("MULTI-TUUUUUUUUUURN")
-                    print(row["Scenario/Question #"])
-                    if "Q1" in row["Scenario/Question #"]:
-                        member_id = str(uuid.uuid4())
-                    if "Q2" in row["Scenario/Question #"]:
-                        pass
+                # if row["Multi-turn or Single-turn"] == "Single-turn":
+                #     print("SINGLE-TUUUUUUUUUURN")
+                #     print(row["Scenario/Question #"])
+                #     member_id = str(uuid.uuid4())
+                # else:
+                #     print("MULTI-TUUUUUUUUUURN")
+                #     print(row["Scenario/Question #"])
+                #     if "Q1" in row["Scenario/Question #"]:
+                #         member_id = str(uuid.uuid4())
+                #     if "Q2" in row["Scenario/Question #"]:
+                #         pass
 
                 Container.logger().info(msg=f"Asking question {i} in document ")
                 question = row["question"]
@@ -189,7 +219,8 @@ def run_pipeline(
                     personalized_data["session_id"] = session_id
                     personalized_data["member_id"] = member_id
                 Container.original_question = question
-                question = prepend_question_with_member_info(row, question)
+                # question = prepend_question_with_member_info(row, question)
+                question = enhance_question_with_context(row['Context'], question)
                 answer = run_single_prediction(question, personalized_data)
                 Container.logger().info(msg=f"Answer: {answer}")
 
@@ -207,8 +238,8 @@ def run_pipeline(
             #     "a 59 year old female without any OI (other insurance coverage). She was just diagnosed with ESRD "
             #     "and is now eligible for Medicare. Which is her primary plan?"
             # )
-            question = "Does acupuncture cover back pain?"
-            
+            question = "My child is no longer a student, how long can she remain on my plan?"
+
             acis = "001acis"
             for idx, input_query in enumerate([question]):
                 Container.original_question = question

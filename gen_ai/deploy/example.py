@@ -47,7 +47,7 @@ target_principal = os.environ.get("DEVELOPER_SERVICE_ACCOUNT")
 if api_domain:
     audience = f"https://{api_domain}/t2x-api"
 else:
-    audience = "http://127.0.0.1:8080/t2x-api"
+    audience = "http://127.0.0.1:8080"
 
 target_scopes = ['https://www.googleapis.com/auth/cloud-platform']
 
@@ -113,7 +113,7 @@ def main():
     if token:
         response = requests.post(url, json=data, headers={'Authorization': f'Bearer {token}'}, timeout=3600)
     else:
-        response = requests.get(url,  json=data, timeout=3600)
+        response = requests.post(url,  json=data, timeout=3600)
 
     if response.status_code == 200:
         print("Success!")
