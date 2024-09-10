@@ -501,6 +501,8 @@ simple_react_chain_prompt: |
     - Write the plan of answer and reasoning into "plan_and_summaries".
     - In the "answer" field give the best answer you can based on the information available. If any follow up questions needed, include it in "additional_information_to_retrieve" as instructed below.
     - Ensure that the follow-up question being generated include the medical condition referred to in the question. For example: if the original question is about acupuncture coverage, "additional_information_to_retrieve" should include word "acupuncture". For example: "additional_information_to_retrieve" will contain a question such as "what are INN and OON benefits for acupuncture?"
+    - If you analyze the response and see that important information such as INN/OON or deductible information is missing, make sure you ask a follow up question in  "additional_information_to_retrieve" and revise your response immediately before returning it if this information is already available.
+    - Strive for comprehensive answers. If you find yourself omitting details mentioned in the context (especially financial aspects like deductibles), revisit your response and include the missing information.
     - Reason about what information is currently missing to answer the question completely and factually using the current context and ask a follow up question that will cause you to fetch additional documents to complete your request. Add the question to "additional_information_to_retrieve". 
     - Look at the question and answer and derive the "confidence_score" for the answer, indicating how confident you are in the answer correctness.
     - If the question is related to benefits coverage, make sure the answer contains information (if applicable) in the sequence specified below:
@@ -513,6 +515,7 @@ simple_react_chain_prompt: |
       - If any of the listed above are missing, "confidence_score" needs to be penalized,
       - Make sure if those are missing, you ask for these details in a follow up question in "additional_information_to_retrieve" field.
       - To make the response readable, use bulleted list format.
+    - If deductible information is explicitly mentioned in the context but missing from the answer, the 'confidence_score' must be penalized and answer has to be improved.
     - Use reasoning and step-by-step thinking, write a "answer_confidence_resoning" to justify your "confidence_score" response.
     - Not all Documents in context will be actually used for generating the answer, so write only the relevant information into the field "context_used". Use DOCUMENT SECTION NAME from context and write into "context_used" the list of section names. Ues EXACT (!) section names from DOCUMENT SECTION NAME. The field "context_used" MUST BE (!) valid list of strings.
     - Make sure the response does not include contradictory information.
@@ -568,6 +571,10 @@ simple_react_chain_prompt: |
       - INN (In-network) and OON (Out-of-network) benefits may have different amounts for deductibles, copay, coinsurance, out ouf pocket limits, prior authorization requirements
       - Include co-insurance % (percentage) as well as deductible amounts ($) for an individual and for all covered persons contained in the documents. Do this for both INN (In-network) and OON (Out-of-network) benefits.
       - Include details about prior authorization requirements contained in the documents.  Do this for both INN (In-network) and OON (Out-of-network) benefits.
+      - If the context provided contains dollar amounts or percentages for INN, OON and deductibles for the benefit, absolutely make sure to include this information.
+      - If the context provides deductible amounts (in dollars) for the benefit, it is crucial to include this information in the response.
+      - Make sure you return all the important details related to coverage, deductibles and limitations listed after the exact amounts and numbers (for example, allowance until meeting the family annual deductible).
+      - If there are multiple ways the benefit can be served (for example: preventive and diagnostic), you need to include INN, OON and deductible information, including dollar amounts, for all of those.
       - After you provide INN and OON benefits information, self-reflect and triple check if the OON benefits information is not categorically stated, then make sure you provide the relevant OON information.
       - Include any age specific limits that are relevant to the question. 
       - Include Copay amounts per individual or family.  Do this for both INN (In-network) and OON (Out-of-network) benefits.
@@ -587,7 +594,7 @@ simple_react_chain_prompt: |
       - Preventive care coverage can include screenings, checkups, and patient counseling to prevent or discover illness,disease, or other health problems, as well as other items and services mandated by law. 
       - Examples of preventive care services covered by UnitedHealthcare may include, but are not limited to: Certain cancer screenings Certain STI screenings Cholesterol screenings Contraceptives and sterilization for women, including contraceptive counseling Flu shot and other vaccinations (shots) Lactation counseling and a personal use electric breast pump Medical nutritional counseling for certain disease Newborn screenings Wellness exams
       - Diagnostic services are given when you had an abnormal screening or have symptoms that require further diagnosis.
-      - If the question doesnot specify whether to output preventive or diagnostic benefits, then show both the INN and OON benefits for both preventive and diagnostic conditions, including coverage details, deductibles, prior authorization requirements, any other limits and exceptions etc.
+      - If the benefit is available as preventive and diagnostic, but the question does not specify which one the subscriber is interested in getting answers to, absolutely make sure to return both the INN and OON benefits for both preventive and diagnostic conditions, including coverage details, deductibles, prior authorization requirements, any other limits and exceptions etc.
       - If the question refers to a routine benefit, then consider it as a preventive benefit.
       - Sometimes the INN benefits may be provided for multiple Tiers, such as Tier1, Tier2 etc. Only if the tiered benefits are shown in the document then include the benefits for all the tiers otherwise display the benefits verbatim.
       - Self reflect and triple check your work if you are correctly displaying the preventive or diagnostic benefits.
@@ -595,7 +602,7 @@ simple_react_chain_prompt: |
       - If you are unable to answer a question, do not direct the member to plan documents or HR department etc. Instead look for the key words with in the data corpus to find a relevant answer.
       - If the (b360_context) is not available, then provide the responses from (kc_context) only. Do not use information from the <Examples> below to generate the answers. The answers have to be grounded in the provided documents.
       - As far as possible, clearly articulate and present INN and OON benefits seperately and do not merge INN and OON benefits together.
-      - Sometimes important information is captured in the relevant context after an '*' symbol. This indicates that there are improtant caveats that should be considered. Output any such caveats appearing after an '*' verbatim, in the response. 
+      - Pay close attention to information marked with an asterisk (*) in the context. These often indicate important caveats, limitations, or additional details that should be included verbatim in the response. You must include any such caveats appearing after an '*' verbatim, in the response.       
       - Pay special focus on the format of your responses. Structure them in a clear bulleted list format, so that they are easy to read.
       - If the response contains multiple sentences, group them in a logical fashion and present them in an easy to read, bulleted list format.
       - If a benefit is not covered or not applicable, then do not include the deductible information in your response. For example, if the OON benefits are not covered, then do not include deductible information for OON.
@@ -908,7 +915,7 @@ simple_react_chain_prompt: |
     </Example3>
     <Example4>
       <Question> 
-        What is the in-network deductible for an individual? 
+        What is the in-network deductible for acupuncture service for an individual?
       </Question>
       <Previous Conversation>
         ""
@@ -920,19 +927,75 @@ simple_react_chain_prompt: |
         DOCUMENT TITLE: About Your Benefits
         DOCUMENT SECTION NAME: Deductibles
         DOCUMENT CONTENT:
-        Type: INN\nYour cost if you use Network benefits\nIndividual Deductible\n **$1600**\n Family Deductible\n **$3200** \\*\n \\* For family coverage, no one in your family is allowed to receive benefits until the family annual deductible is met.\nType: OON\nYour cost if you use Out-of-Network benefits\nIndividual Deductible\n **$3200**\n Family Deductible\n **$6400** \\*\n \\* For family coverage, no one in your family is allowed to receive benefits until the family annual deductible is met.\n
+          INN\nYour cost if you use Network benefits\nIndividual Deductible\n **$1600**\n Family Deductible\n **$3200** \\*\n \\* For family coverage, no one in your family is allowed to receive benefits until the family annual deductible is met.\nType: OON\nYour cost if you use Out-of-Network benefits\nIndividual Deductible\n **$3200**\n Family Deductible\n **$6400** \\*\n \\* For family coverage, no one in your family is allowed to receive benefits until the family annual deductible is met.
+          \nINN: 10% co-insurance after you pay the deductible. \nOON:40% coinsurance after you pay the deductible. You do not need to get prior authorization before getting this care.\n
       </b360_context>
-            The JSON response for the round number 0 for the question "What is the in-network deductible for an individual?".
+            The JSON response for the round number 1 for the question "What is the in-network deductible for acupuncture service for an individual?".
       <Output>
-        {{"plan_and_summaries":'The question is asking for the in-network deductible for an individual. I will check the b360 document for information on deductibles and then the kc document for the specific plan details including deductible and coinsurance amounts.
-        INN\nYour cost if you use Network benefits\nIndividual Deductible\n **$1600**\n Family Deductible\n **$3200** \\*\n \\* For family coverage, no one in your family is allowed to receive benefits until the family annual deductible is met.\nType: OON\nYour cost if you use Out-of-Network benefits\nIndividual Deductible\n **$3200**\n Family Deductible\n **$6400** \\*\n \\* For family coverage, no one in your family is allowed to receive benefits until the family annual deductible is met.\n',
-        "answer": "The in-network deductible for an individual is $1600. The family deductible is $3200. For family coverage, no one in your family is allowed to receive benefits until the family annual deductible is met.",
-        "additional_information_to_retrieve": "",
-        "context_used": "['deductibles']",
-        "confidence_score": 100,
-        "answer_confidence_reasoning": "The answer includes INN (in-network) deductibles information, including family deductible. Additionally the answer includes, the caveats provided in the relevant context after the "*" i.e. For family coverage, no one in your family is allowed to receive benefits until the family annual deductible is met. And it is based on the factual information. Therefore the confidence in this response is 100."}}
+        {{'round_number': 1, 
+        'plan_and_summaries': 'The question is asking for the in-network deductible for acupuncture service for an individual. I will check the b360 document for information on deductibles and then the kc document for the specific plan details including deductible and coinsurance amounts.', 
+        'answer': 'Acupuncture services are covered under the plan. For family coverage, no one in your family is allowed to receive benefits until the family annual deductible is met. 
+          The co-insurance for acupuncture services is 15% after the deductible is met.  The plan has a limit of 25 visits per calendar year.  
+          Acupuncture services must be performed in an office setting by a provider who is practicing within the scope of their license or who is certified: Doctor of Medicine, Doctor of Osteopathy, Chiropractor, Acupuncturist.', 
+        'context_used': ['special services', 'deductibles'], 
+        'additional_information_to_retrieve': 'What are INN and OON deductible amounts for acupuncture service?',
+        'confidence_score': 70, 
+        "answer_confidence_reasoning": 'The answer does not have the exact dollar amounts for INN and OON coverage, which is applicable to this benefit and is present in the context provided. Therefore the confidence_score is penalized'}}
+      </Output>
+
+        This is the 2 round for the question "What is the in-network deductible for acupuncture service for an individual?"". Confidence score is 70 and 'additional_information_to_retrieve' is not empty, therefore I need to revise the answer.
+      <Question> 
+        'What are INN and OON deductible amounts for acupuncture service?'
+      </Question>
+      <Previous Conversation>
+        ""
+      </Previous Conversation>
+      <Previous Rounds>
+        {{'round_number': 1, 
+        'plan_and_summaries': 'The question is asking for the in-network deductible for acupuncture service for an individual. I will check the b360 document for information on deductibles and then the kc document for the specific plan details including deductible and coinsurance amounts.', 
+        'answer': 'Acupuncture services are covered under the plan. 
+                  **INN:**
+                   *10% co-insurance after you pay the deductible.
+                  **OON:**
+                   *40% coinsurance after you pay the deductible. You do not need to get prior authorization before getting this care.
+                  For family coverage, no one in your family is allowed to receive benefits until the family annual deductible is met. 
+                  The co-insurance for acupuncture services is 15% after the deductible is met.  The plan has a limit of 25 visits per calendar year.  
+                  Acupuncture services must be performed in an office setting by a provider who is practicing within the scope of their license or who is certified: Doctor of Medicine, Doctor of Osteopathy, Chiropractor, Acupuncturist.', 
+        'context_used': ['special services', 'deductibles'], 
+        'additional_information_to_retrieve': 'What are INN and OON deductible amounts for acupuncture service?',
+        'confidence_score': 70, 
+        "answer_confidence_reasoning": 'The answer does not have the exact dollar amounts for the individual and family deductibles, which is applicable to this benefit and is present in the context provided. This information must be included. Therefore the confidence_score is penalized'}}
+      </Previous Rounds>
+      <b360_context>
+        DOCUMENT TITLE: About Your Benefits
+        DOCUMENT SECTION NAME: Deductibles
+        DOCUMENT CONTENT:
+          INN\nYour cost if you use Network benefits\nIndividual Deductible\n **$1600**\n Family Deductible\n **$3200** \\*\n \\* For family coverage, no one in your family is allowed to receive benefits until the family annual deductible is met.\nType: OON\nYour cost if you use Out-of-Network benefits\nIndividual Deductible\n **$3200**\n Family Deductible\n **$6400** \\*\n \\* For family coverage, no one in your family is allowed to receive benefits until the family annual deductible is met.
+          \nINN: 10% co-insurance after you pay the deductible. \nOON:40% coinsurance after you pay the deductible. You do not need to get prior authorization before getting this care.\n
+      </b360_context>
+        The JSON response for the round number 2 for the question "What is the in-network deductible for an individual?".
+      <Output>
+        {{'round_number': 1, 
+        'plan_and_summaries': 'The question is asking for the in-network deductible for acupuncture service for an individual. I will check the b360 document for information on deductibles and then the kc document for the specific plan details including deductible and coinsurance amounts.', 
+        'answer': 'Acupuncture services are covered under the plan. 
+                  **INN:**
+                   *10% co-insurance after you pay the deductible.
+                  **OON:**
+                   *40% coinsurance after you pay the deductible. You do not need to get prior authorization before getting this care.
+                  **Dedudctibles:**
+                    * The in-network deductible for an individual is $1600. 
+                    * The family deductible is $3200. 
+                  For family coverage, no one in your family is allowed to receive benefits until the family annual deductible is met.  
+                  The co-insurance for acupuncture services is 15% after the deductible is met.  
+                  The plan has a limit of 25 visits per calendar year.  
+                  Acupuncture services must be performed in an office setting by a provider who is practicing within the scope of their license or who is certified: Doctor of Medicine, Doctor of Osteopathy, Chiropractor, Acupuncturist.', 
+        'context_used': ['special services', 'deductibles'], 
+        'additional_information_to_retrieve': '',
+        'confidence_score': 100, 
+        "answer_confidence_reasoning": 'The answer contains all the information needed, is complete and helpful. Therefore the score is 100.'}}
       </Output>
     </Example4>
+
   </Examples>
 
   Now it's your turn!
@@ -965,6 +1028,7 @@ simple_react_chain_prompt: |
    - Include coinsurance amount if applicable (either as percentage or as dollars) (Include both INN (In-Network) benefits and OON (Out-of-Network) benefits)
 
   {final_round_statement}
+
 
 react_chain_prompt: |
   You are a smart, friendly and helpful chatbot for United Healthcare. 

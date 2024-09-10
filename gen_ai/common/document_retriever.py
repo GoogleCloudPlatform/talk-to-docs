@@ -110,9 +110,9 @@ class SemanticDocumentRetriever(DocumentRetriever):
         elif Container.config.get("vector_name") == "vais":
             metadata = convert_to_vais_format(metadata)
 
-        ss_docs = store.similarity_search_with_score(query=questions_for_search, k=50, filter=metadata)
-        max_number_of_docs_retrieved = Container.config.get("max_number_of_docs_retrieved", 3)
-        ss_docs = [x[0] for x in ss_docs[0:max_number_of_docs_retrieved]]
+        k = Container.config.get("max_number_of_docs_retrieved", 3)
+        ss_docs = store.similarity_search_with_score(query=questions_for_search, k=k, filter=metadata)
+        ss_docs = [x[0] for x in ss_docs[0:k]]
 
         if Container.config.get("use_mmr", False):
             mmr_docs = store.max_marginal_relevance_search(
@@ -131,4 +131,3 @@ class SemanticDocumentRetriever(DocumentRetriever):
         self, store: Chroma, questions_for_search: str, metadata: dict[str, str] | None = None
     ) -> list[Document]:
         return self._get_related_docs_from_store(store, questions_for_search, metadata)
-
