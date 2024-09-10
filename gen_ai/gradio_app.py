@@ -61,7 +61,7 @@ def predict(conversation: Conversation, input_query, input_metadata, request: gr
 
     if input_metadata:
         input_metadata = {"set_number": input_metadata.lower(),
-                          "member_id": "m123"}
+                          "member_id": "m123456"}
     else:
         input_metadata = None
     print(f"input_metadata = {input_metadata}")
@@ -288,7 +288,7 @@ if __name__ == "__main__":
 
                 with gr.Row():
                     metadata_box = gr.Textbox(
-                        label="Optional. Input personalization info",
+                        label="Input personalization info (set_number), e.g 001ACIS ",
                         lines=1,
                         placeholder="Input personalization info",
                     )
@@ -415,7 +415,7 @@ if __name__ == "__main__":
         # Examples for the chatbot
         gr.Examples(
             [
-                ["What are Verizon's top operating expenses?"],
+                ["How does reimbursement work?"],
                 ["What industry does AMCOR primarily operate in?"],
                 ["Locate information on partnerships or collaborations announced by Paramount."],
                 ["What are the key trends impacting costs for davita?"],
