@@ -60,8 +60,7 @@ def predict(conversation: Conversation, input_query, input_metadata, request: gr
     conversation.exchanges.append(query_state)
 
     if input_metadata:
-        input_metadata = {"set_number": input_metadata.lower(),
-                          "member_id": "m123456"}
+        input_metadata = {"set_number": input_metadata.lower(), "member_id": "m123"}
     else:
         input_metadata = None
     print(f"input_metadata = {input_metadata}")
@@ -212,7 +211,7 @@ def authenticate(username, password):
 
 
 if __name__ == "__main__":
-    load_dotenv()
+    load_dotenv(dotenv_path=".env_gradio", verbose=True)
     # disable for now, we will need to dive deeper why it stopped working with gradio
     # container = Container()
     # container.init_resources()

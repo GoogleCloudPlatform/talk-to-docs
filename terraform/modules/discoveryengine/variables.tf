@@ -12,6 +12,6 @@ variable "discovery_engines" {
     collection_id               = optional(string, "default_collection")
     company_name                = string
   }))
-  description = "The discovery engines to create"
+  description = "The discovery engine data store and search engine to provision."
   default     = {}
 }

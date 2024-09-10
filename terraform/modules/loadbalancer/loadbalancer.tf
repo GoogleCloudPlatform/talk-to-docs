@@ -48,61 +48,10 @@ resource "google_compute_managed_ssl_certificate" "cert" {
   }
 }
 
-# Default Backend Service.
-resource "google_storage_bucket" "default_backend_bucket" {
-  location                    = "US"
-  name                        = "${var.project_id}-default-backend-bucket"
-  uniform_bucket_level_access = true
-
-
-  website {
-    main_page_suffix = "site/index.html"
-    not_found_page   = "site/404.html"
-  }
-
-  force_destroy = true
-}
-
-resource "google_storage_managed_folder" "folder" {
-  bucket = google_storage_bucket.default_backend_bucket.name
-  name   = "site/"
-}
-
-# # Create a public viewer IAM member for the default backend bucket managed folder.
-# # Projects enforcing policy constraints allowing IAM members only from
-# # authorized domains will fail to create this resource.
-# # Omit this resource to prevent the constraint from failing the deployment.
-# # Requests reaching the default bucket will return a 403 error in that case.
-# resource "google_storage_managed_folder_iam_member" "public_viewer" {
-#   bucket         = google_storage_managed_folder.folder.bucket
-#   managed_folder = google_storage_managed_folder.folder.name
-#   role           = "roles/storage.objectViewer"
-#   member         = "allUsers"
-# }
-
-resource "google_storage_bucket_object" "index" {
-  name         = "${google_storage_managed_folder.folder.name}index.html"
-  content      = "<html><body><h1>Hello, World!</h1></body></html>"
-  content_type = "text/html"
-  bucket       = google_storage_bucket.default_backend_bucket.name
-}
-
-resource "google_storage_bucket_object" "not_found" {
-  name         = "${google_storage_managed_folder.folder.name}404.html"
-  content      = "<html><body><h1>Uh oh</h1></body></html>"
-  content_type = "text/html"
-  bucket       = google_storage_bucket.default_backend_bucket.name
-}
-
-resource "google_compute_backend_bucket" "default_backend_bucket" {
-  name        = "default-backend-bucket"
-  bucket_name = google_storage_bucket.default_backend_bucket.name
-}
-
 # URL Map.
 resource "google_compute_url_map" "t2x_lb_url_map" {
   name            = "t2x-lb-url-map"
-  default_service = google_compute_backend_bucket.default_backend_bucket.id
+  default_service = var.default_service
 
   host_rule {
     hosts        = [local.t2x_lb_domain]
@@ -110,7 +59,7 @@ resource "google_compute_url_map" "t2x_lb_url_map" {
   }
 
   path_matcher {
-    default_service = google_compute_backend_bucket.default_backend_bucket.id
+    default_service = var.default_service
     name            = "t2x-path-matcher"
 
     dynamic "path_rule" {

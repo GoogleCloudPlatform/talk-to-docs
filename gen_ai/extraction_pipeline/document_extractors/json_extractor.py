@@ -719,14 +719,21 @@ class JsonExtractor(BaseExtractor):
         """
         extractor = DefaultJsonExtractor(self.filepath)
         self.data = extractor.extract_document()
+<<<<<<< HEAD
         config_file_parameters = {"raw_files_path": self.raw_files_path}
+=======
+>>>>>>> main
         if self.json_chunking == "custom":
             kc_name = re.match(r"^KM\d{7}\.json", os.path.basename(self.filepath))
             if "BenefitPlan" in self.data and not kc_name:
                 chunking = "b360_new"
             else:
                 chunking = "kc"
+<<<<<<< HEAD
             config_file_parameters.update({"json_chunking": chunking})
+=======
+            config_file_parameters = {"json_chunking": chunking}
+>>>>>>> main
             extractor = JsonExtractor(self.filepath, config_file_parameters)
             return extractor.process(output_dir)
 
@@ -747,6 +754,23 @@ class JsonExtractor(BaseExtractor):
                 if not self.create_files(document_chunks, metadata, output_dir):
                     return False
         elif self.json_chunking == "b360_new":
+<<<<<<< HEAD
+=======
+            metadata_creator = METADATA_CREATOR_MAP.get(
+                self.json_chunking, DefaultJsonMetadataCreator
+            )(self.filepath, self.data)
+            metadata = metadata_creator.create_metadata()
+            if not metadata:
+                return False
+
+            document_chunker = CHUNKER_MAP.get(
+                self.json_chunking, DefaultJsonChunker
+            )(self.filepath, self.data)
+            document_chunks = document_chunker.chunk_the_document()
+            if not self.create_files(document_chunks, metadata, output_dir):
+                return False
+        else:
+>>>>>>> main
             metadata_creator = METADATA_CREATOR_MAP.get(
                 self.json_chunking, DefaultJsonMetadataCreator
             )(self.filepath, self.data)

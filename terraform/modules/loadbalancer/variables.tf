@@ -1,13 +1,18 @@
 variable "project_id" {
   type        = string
-  description = "The ID of the project"
+  description = "The project ID."
 }
 
 variable "global_lb_domain" {
   type        = string
-  description = "The domain of the global load balancer"
+  description = "The global load balancer domain name."
   nullable    = true
   default     = null
+}
+
+variable "default_service" {
+  type        = string
+  description = "The default backend service."
 }
 
 variable "backend_services" {
@@ -16,5 +21,5 @@ variable "backend_services" {
     service             = string
     path_prefix_rewrite = optional(string, "/")
   }))
-  description = "The backend services to be used in the URL map"
+  description = "The list of load balancer backend services."
 }

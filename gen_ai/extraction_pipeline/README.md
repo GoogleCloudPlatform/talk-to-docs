@@ -1,7 +1,7 @@
 # Extraction Pipeline
 
 ## Overview
-Extraction pipeline is a comprehensive suite of tools custom created to extract valuable data from various document formats, including PDF, DOCX, XML, and JSON.
+Extraction pipeline is a comprehensive suite of tools customly created to extract valuable data from various document formats, including PDF, DOCX, XML, and JSON.
 The extraction pipeline supports both *Batch* processing for a one-time extraction and *Continuous* processing to monitor a Google Cloud Storage bucket for new files and extract data at specified intervals.
 In Batch mode all the files in given directory or gs bucket are processed at once. 
 In Continuous mode the pipeline processes files in given bucket and then checks the bucket every set time if new files were added. If so, the files are processed and copied into given output bucket or datastore.
@@ -121,5 +121,3 @@ pip install -e .
 - Ensure that the `config.yaml` file is correctly configured with the required parameters.
 - For GCS operations, make sure you have the necessary permissions to access the buckets.
 - In continuous mode, the script will run indefinitely, monitoring the GCS bucket for new files.
-
-

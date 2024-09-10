@@ -8,35 +8,38 @@ Terraform modules to stage and deploy the application components. The `bootstrap
 - [Directory Structure](#directory-structure)
 - [Deployment steps](#deployment-steps)
 - [Prerequisites](#prerequisites)
-    - [Initialize](#1-initialize)
-    - [Create a service account for Terraform provisioning](#2-create-a-service-account-for-terraform-provisioning)
-    - [Grant the required IAM roles to the service account](#3-grant-the-required-iam-roles-to-the-service-account)
-    - [Use Service Account Impersonation](#4-use-service-account-impersonation)
-    - [Terraform remote state](#5-terraform-remote-state)
 - [Bootstrap](#bootstrap)
+    - [Execute the bootstrap script](#execute-the-bootstrap-script)
 - [Automate Deployments with Cloud Build](#automate-deployments-with-cloud-build)
     - [Configure `gen_ai/llm.yaml`](#1-configure-gen_aillmyaml)
-    - [Configure optional input variable values in `terraform/main/vars.auto.tfvars`](#2-configure-optional-input-variable-values-in-terraformmainvarsautotfvars)
+    - [Configure optional input variable values in `terraform/main/vars.auto.tfvars`](#2-optional-configure-optional-input-variable-values-in-terraformmainvarsautotfvars)
     - [Set environment variables](#3-set-environment-variables)
-    - [Build & push the docker images and apply the Terraform configuration](#4-build--push-the-docker-images-and-apply-the-terraform-configuration)
+    - [Create a `.env_gradio` file](#4-create-a-env_gradio-file)
+    - [Build & push the docker images and apply the Terraform configuration](#5-build--push-the-docker-images-and-apply-the-terraform-configuration)
 - [Add an A record to the DNS Managed Zone](#add-an-a-record-to-the-dns-managed-zone)
 - [Test the endpoint](#test-the-endpoint)
 - [Stage document extractions](#stage-document-extractions)
     - [Migrate document extractions to the staging bucket with user credentials](#migrate-document-extractions-to-the-staging-bucket-with-user-credentials)
     - [Migrate document extractions to the staging bucket using impersonated service account credentials](#migrate-document-extractions-to-the-staging-bucket-using-impersonated-service-account-credentials)
 - [Prepare the Discovery Engine Data Store using Cloud Workflows](#prepare-the-discovery-engine-data-store-using-cloud-workflows)
+    - [Trigger the workflow](#1-trigger-the-workflow)
+    - [Check the progress](#2-check-the-progress)
 - [Configure Identity-Aware Proxy](#configure-identity-aware-proxy)
 
 ### REFERENCE INFO
 - [Rollbacks](#rollbacks)
     - [Option 1: Use the Cloud Console to switch Cloud Run service traffic to a different revision](#option-1-use-the-cloud-console-to-switch-cloud-run-service-traffic-to-a-different-revision)
     - [Option 2: Rollback to a different Docker image using Terraform](#option-2-rollback-to-a-different-docker-image-using-terraform)
-- [[OPTIONAL] Prepare the Discovery Engine Data Store 'manually' using HTTP](#optional-prepare-the-discovery-engine-data-store-manually-using-http)
+- [Execute Terraform to apply infrastructure-only changes to the `bootstrap` or `main` module](#execute-terraform-to-apply-infrastructure-only-changes-to-the-bootstrap-or-main-module)
+- [Prepare the Discovery Engine Data Store 'manually' using HTTP](#prepare-the-discovery-engine-data-store-manually-using-http)
     - [Create metadata](#1-create-metadata)
     - [Purge documents](#2a-optional-purge-documents)
     - [Import documents](#2b-import-documents)
     - [Verify the operation](#3-verify-the-operation)
 - [Security](#security)
+    - [Least Privilege Service Account roles](#least-privilege-service-account-roles)
+    - [Service Account Impersonation](#service-account-impersonation)
+    - [Data Encryption](#data-encryption)
 - [Observability](#observability)
 - [Terraform Overview](#terraform-overview)
     - [Terraform command alias](#terraform-command-alias)
@@ -69,61 +72,60 @@ Terraform modules to stage and deploy the application components. The `bootstrap
 ```sh
 terraform/ # this directory
 ├── README.md # this file
-├── assets/ # architecture diagrams
-├── bootstrap/ # provision project APIs, Cloud Build service account, IAM roles, and staging bucket
+├── assets/ # diagrams and screenshots
+├── bootstrap/ # provision resources required for the main module
 ├── main/ # provision the talk-to-docs service components
-└── modules/ # reusable Terraform modules called from the `main` module
+├── modules/ # reusable Terraform modules called from the `main` module
+└── scripts/ # helper scripts for deployment
 ```
 
 &nbsp;
 # Deployment steps
 ([return to top](#talk-to-docs-application-deployment-with-terraform))
 
-1. Complete the prerequisites to prepare the Google Cloud project for Terraform.
-2. Bootstrap the project with Terraform.
+1. Complete the [prerequisites](#prerequisites).
+2. [Bootstrap](#bootstrap) the project with gcloud and Terraform.
     - Enable APIs.
-    - Create a Cloud Build service account with required IAM roles.
-    - Create a document staging bucket.
+    - Create service accounts with required IAM roles.
+    - Configure service account impersonation.
+    - Create remote Terraform state and document staging buckets.
     - Create an Artifact Registry repository.
-3. Automate the deployment with Cloud Build.
+3. [Automate the deployment with Cloud Build](#automate-deployments-with-cloud-build).
     - Build a Docker image.
     - Push the Docker image to Artifact Registry.
     - Apply the Terraform configuration to deploy the T2X application components.
-        - Cloud Run hosts the application using the Docker image from Artifact Registry.
-        - Agent Builder Data Store and Search engine for [RAG](https://cloud.google.com/use-cases/retrieval-augmented-generation?hl=en).
-        - Memorystore Redis for session management.
-        - BigQuery for log data storage.
-        - Cloud Load Balancer for HTTPS traffic routing and TLS encryption.
-        - DNS Managed Zone for private DNS resolution.
-        - VPC network and subnet for private communication between Cloud Run and Memorystore Redis.
-4. Configure DNS and test the talk-to-docs endpoint.
-5. Stage document extractions.
-6. Import document extractions to the Discovery Engine Data Store using Cloud Workflows.
-7. Configure Identity-Aware Proxy for talk-to-docs UI (gradio) Cloud Run services.
+4. [Configure DNS](#add-an-a-record-to-the-dns-managed-zone) and [test the talk-to-docs endpoint](#test-the-endpoint).
+5. [Stage document extractions](#stage-document-extractions).
+6. [Import document extractions](#prepare-the-discovery-engine-data-store-using-cloud-workflows) to the Discovery Engine Data Store using Cloud Workflows.
+7. [Configure Identity-Aware Proxy](#configure-identity-aware-proxy) for talk-to-docs UI (gradio) Cloud Run services.
 
 
 &nbsp;
 # Prerequisites
 ([return to top](#talk-to-docs-application-deployment-with-terraform))
 
-### **A [Project Owner](https://cloud.google.com/iam/docs/understanding-roles#owner) completes these steps to prepare the environment for Terraform provisioning.**
-### **Commands in this repository assume `tf` is an [alias](https://www.man7.org/linux/man-pages/man1/alias.1p.html) for `terraform` in your shell.**
+- [Clone the repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) and open a terminal session in the local repo directory.
+- Your Google user account must be a **[Project Owner](https://cloud.google.com/iam/docs/understanding-roles#owner)** in the target project.
+- Make the helper scripts executable.
+```sh
+chmod +x terraform/scripts/bootstrap.sh # change the path if necessary
+chmod +x terraform/scripts/set_variables.sh # change the path if necessary
+chmod +x terraform/scripts/test_endpoint.sh # change the path if necessary
+chmod +x terraform/scripts/trigger_workflow.sh # change the path if necessary
+```
+
+- **Commands in this repository assume `tf` is an [alias](https://www.man7.org/linux/man-pages/man1/alias.1p.html) for `terraform` in your shell.**
 ```sh
 alias tf='terraform'
 ```
 
-
-## 1. Initialize
-- Install the [Google Cloud SDK](https://cloud.google.com/sdk/docs/install).
-- Authenticate.
-```sh
-gcloud auth login
-```
-
 - Set the default project. Wait up to a few minutes and try again if you encounter an error shortly after enabling the Service Usage API.
+### OPTION 1: Deploying from [Google Cloud Shell](https://cloud.google.com/shell/docs/using-cloud-shell):
+
+- Your user account (`core.account`) and default project (`core.project`) should already be set up in the Cloud Shell environment.
+- Confirm your `gcloud` configuration.:
 ```sh
-export PROJECT='my-project-id' # replace with your project ID
-gcloud config set project $PROJECT
+gcloud config list --format=yaml
 ```
 
 - Enable the Service Usage, IAM, and Service Account Credentials APIs.
@@ -136,98 +138,65 @@ gcloud services enable serviceusage.googleapis.com iam.googleapis.com iamcredent
 gcloud auth application-default login
 ```
 
-- Export the project ID as [Terraform environment variable](https://developer.hashicorp.com/terraform/language/values/variables#environment-variables). (Used automatically by later Terraform commands.)
+- [OPTIONAL] Set the default compute region (`compute.region`). The helper script will default to 'us-central1' if your `gcloud` configuration does not specify a region.
 ```sh
-export TF_VAR_project_id=$PROJECT
+gcloud config set compute/region 'region' # replace with your preferred region if it's not 'us-central1'
+```
+Example output after setting the region to `us-west1`:
+```yaml
+accessibility:
+  screen_reader: 'True'
+component_manager:
+  disable_update_check: 'True'
+compute:
+  gce_metadata_read_timeout_sec: '30'
+  region: us-west1
+core:
+  account: project-owner@example.com
+  disable_usage_reporting: 'False'
+  project: my-project-id
+metrics:
+  environment: devshell
 ```
 
+- Continue to the [Bootstrap](#bootstrap) step.
 
-## 2. Create a service account for Terraform provisioning.
-- **The examples in this document use the service account name `terraform-service-account` (with the example email address `terraform-service-account@my-project-id.iam.gserviceaccount.com`) but you can choose any name not already used in the project.**
-- Change any subsequent commands in this document that use the service account name to match the name you choose.
+### OPTION 2: Deploying outside of Google Cloud Shell:
+- Install [Terraform](https://learn.hashicorp.com/tutorials/terraform/install-cli).
+- Install the [Google Cloud SDK](https://cloud.google.com/sdk/docs/install).
+- Authenticate.
 ```sh
-gcloud iam service-accounts create terraform-service-account --display-name="Terraform Provisioning Service Account" --project=$PROJECT
+gcloud auth login
 ```
 
-- Export the service account email address as a [Terraform environment variable](https://developer.hashicorp.com/terraform/language/values/variables#environment-variables). (Used automatically by later Terraform commands.)
+- Set the default project.
 ```sh
-export TF_VAR_terraform_service_account="terraform-service-account@${PROJECT}.iam.gserviceaccount.com"
+gcloud config set project 'my-project-id' # replace with your project ID
 ```
 
-
-## 3. Grant the required [IAM roles](https://cloud.google.com/iam/docs/understanding-roles) to the service account.
+- [OPTIONAL] Set the default compute region (`compute.region`). The helper script will default to 'us-central1' if your `gcloud` configuration does not specify a region.
 ```sh
-roles=(
-  "roles/ml.admin"
-  "roles/artifactregistry.admin"
-  "roles/bigquery.admin"
-  "roles/cloudbuild.builds.editor"
-  "roles/redis.admin"
-  "roles/compute.admin"
-  "roles/discoveryengine.admin"
-  "roles/dns.admin"
-  "roles/resourcemanager.projectIamAdmin"
-  "roles/run.admin"
-  "roles/iam.securityAdmin"
-  "roles/iam.serviceAccountAdmin"
-  "roles/iam.serviceAccountUser"
-  "roles/serviceusage.serviceUsageAdmin"
-  "roles/storage.admin"
-  "roles/workflows.admin"
-)
-
-for role in "${roles[@]}"; do
-  gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:terraform-service-account@${PROJECT}.iam.gserviceaccount.com" --role=$role --condition=None
-done
-
+gcloud config set compute/region 'region' # replace with your preferred region if it's not 'us-central1'
 ```
 
-- AI Platform Admin (`roles/ml.admin`)
-- Artifact Registry Administrator (`roles/artifactregistry.admin`)
-- BigQuery Admin (`roles/bigquery.admin`)
-- Cloud Build Editor (`roles/cloudbuild.builds.editor`)
-- Cloud Memorystore Redis Admin (`roles/redis.admin`)
-- Cloud Run Admin (`roles/run.admin`)
-- Compute Admin (`roles/compute.admin`)
-- Discovery Engine Admin (`roles/discoveryengine.admin`)
-- DNS Admin (`roles/dns.admin`)
-- Project IAM Admin (`roles/resourcemanager.projectIamAdmin`)
-- Security Admin (`roles/iam.securityAdmin`) - required to [set IAM policies on DNS Managed Zones](https://cloud.google.com/dns/docs/zones/iam-per-resource-zones#expandable-1)
-- Service Account Admin (`roles/iam.serviceAccountAdmin`)
-- Service Account User (`roles/iam.serviceAccountUser`) - required to [attach service accounts to resources](https://cloud.google.com/iam/docs/attach-service-accounts)
-- Service Usage Admin (`roles/serviceusage.serviceUsageAdmin`)
-- Storage Admin (`roles/storage.admin`)
-- Workflows Admin (`roles/workflows.admin`)
-
-
-## 4. Use [Service Account Impersonation](https://cloud.google.com/iam/docs/service-account-impersonation).
-Instead of creating and managing Service Account keys for authentication, this code uses an [impersonation pattern for Terraform](https://cloud.google.com/blog/topics/developers-practitioners/using-google-cloud-service-account-impersonation-your-terraform-code) to fetch access tokens on behalf of a Google Cloud IAM Service Account.
-
-- Grant the caller (a Google user account or group address) permission to generate [short-lived access tokens](https://cloud.google.com/iam/docs/create-short-lived-credentials-direct) on behalf of the targeted service account.
-    - The caller needs the Account Token Creator role (`roles/iam.serviceAccountTokenCreator`) or a custom role with the `iam.serviceAccounts.getAccessToken` permission that applies to the Terraform provisioning service account.
-    - Create a [role binding on the Service Account resource](https://cloud.google.com/iam/docs/manage-access-service-accounts#single-role) instead of the project IAM policy to [minimize the scope of the permission](https://cloud.google.com/iam/docs/best-practices-service-accounts#project-folder-grants).
-    - Perhaps counterintuitively, the primitive Owner role (`roles/owner`) does NOT include this permission.
-```sh
-export MEMBER='user:{your-username@example.com}' # replace '{your-username@example.com}' from 'user:{your-username@example.com}' with your Google user account email address
-# Example to add a group -> export MEMBER='group:devops-group@example.com'
-
-gcloud iam service-accounts add-iam-policy-binding "terraform-service-account@${PROJECT}.iam.gserviceaccount.com" --member=$MEMBER --role="roles/iam.serviceAccountTokenCreator"
-```
-
-
-## 5. Terraform [remote state](https://developer.hashicorp.com/terraform/language/state/remote)
-- Create a GCS bucket for the remote Terraform state.
-- **The examples in this document use the bucket name `terraform-state-my-project-id` but you can choose any name not already in use in the project.**
-```sh
-gcloud storage buckets create "gs://terraform-state-${PROJECT}" --project=$PROJECT
-```
+- Continue to the [Bootstrap](#bootstrap) step.
 
 
 &nbsp;
 # Bootstrap
 ([return to top](#talk-to-docs-application-deployment-with-terraform))
 
-The `bootstrap` module provisions resources required for the main module. It should be a one-time setup for a new project, but you can re-run it to add or enable additional APIs to support future development.
+The `bootstrap.sh` script automates the `gcloud` and `terraform` commands required to prepare the project.
+- Call the `set_variables.sh` script to configure the shell environment.
+- Enable the Service Usage, IAM, and Service Account Credentials APIs.
+- Export [Terraform environment variables](https://developer.hashicorp.com/terraform/language/values/variables#environment-variables). (Used automatically by later Terraform commands.)
+- Create a service account for Terraform provisioning.
+- Grant the required [IAM roles](https://cloud.google.com/iam/docs/understanding-roles) to the service account.
+- Prepare [Service Account Impersonation](https://cloud.google.com/iam/docs/service-account-impersonation).
+- Create a Terraform [remote state](https://developer.hashicorp.com/terraform/language/state/remote) bucket.
+- Initialize the Terraform `bootstrap` module and apply to provision resources required for the main module.
+
+The `bootstrap` Terraform module provisions resources.
 - Project APIs.
 - Cloud Build service account.
 - Artifact Registry repository.
@@ -241,14 +210,11 @@ The `bootstrap` module provisions resources required for the main module. It sho
     - This optional step updates the document extraction staging bucket IAM policy: add the Storage Object User (`roles/storage.objectUser`) role to the Data Mover service account you specify.
     - To configure an IAM policy for a Data Mover service account, set the `data_mover_service_account` [input variable](https://developer.hashicorp.com/terraform/language/values/variables#assigning-values-to-root-module-variablesvalues) value to the service account email address in `terraform/bootstrap/vars.auto.tfvars`.
 
-Initialize the Terraform `bootstrap` module using a [partial backend configuration](https://developer.hashicorp.com/terraform/language/settings/backends/configuration#partial-configuration) and apply to provision resources.
+
+## Execute the bootstrap script.
+- Source the `bootstrap.sh` script to set your shell variables and run the Terraform commands.
 ```sh
-export REPO_ROOT=$(git rev-parse --show-toplevel)
-cd $REPO_ROOT/terraform/bootstrap
-
-tf init -backend-config="bucket=terraform-state-${PROJECT}" -backend-config="impersonate_service_account=terraform-service-account@${PROJECT}.iam.gserviceaccount.com"
-
-tf apply
+source ./terraform/scripts/bootstrap.sh # change the path if necessary
 ```
 
 
@@ -256,8 +222,7 @@ tf apply
 # Automate Deployments with Cloud Build
 ([return to top](#talk-to-docs-application-deployment-with-terraform))
 
-- Use the [`gcloud CLI`](https://cloud.google.com/build/docs/running-builds/submit-build-via-cli-api) with [build config files](https://cloud.google.com/build/docs/configuring-builds/create-basic-configuration) to plan and deploy project resources.
-Execute commands in each module.
+Use the [`gcloud CLI`](https://cloud.google.com/build/docs/running-builds/submit-build-via-cli-api) with [build config files](https://cloud.google.com/build/docs/configuring-builds/create-basic-configuration) to plan and deploy project resources.
 
 ## 1. Configure `gen_ai/llm.yaml`.
 Fill in following parameters accordingly:
@@ -270,27 +235,56 @@ Fill in following parameters accordingly:
 Verify/Change parameters if needed:
 - `bq_project_id` - leave as `null`: ensures all API clients use Application Default Credentials with resources in the same project.
 - `memory_store_ip` - the Memorystore Redis host - should always be `redis.t2xservice.internal`.
+- `dataset_name` - the BigQuery dataset that will store T2X logs.
+- `memory_store_ip` - leave as `redis.t2xservice.internal` when using private DNS configured with Terraform (optionally set to a manually-provisioned Redis instance IP address during local development).
+- `customer_name` - the company name used in the Agent Builder Search Engine.
+- `vais_data_store` - the Agent Builder Data Store ID (only use `null` during local development to cause the talk-to-docs application to create a new data store at startup).
+- `vais_engine_id` - the Agent Builder Search Engine ID (only use `null` during local development to cause the talk-to-docs application to create a new search engine at startup).
 - `vais_location` - the location for discoveryengine API (Agent Builder) resources, one of us, eu, or global
 
-## 2. Configure optional [input variable](https://developer.hashicorp.com/terraform/language/values/variables#assigning-values-to-root-module-variablesvalues) values in `terraform/main/vars.auto.tfvars`.
+## 2. [OPTIONAL] Configure a domain name [input variable](https://developer.hashicorp.com/terraform/language/values/variables#assigning-values-to-root-module-variablesvalues) value in `terraform/main/vars.auto.tfvars`.
 - `global_lb_domain` - the domain name you want to use for the Cloud Load Balancer front end. You need control of the DNS zone to [edit the A record](#add-an-a-record-to-the-dns-managed-zone). If left unset, Terraform will default to using [nip.io](https://nip.io) with the load balancer IP address.
-- `cloud_run_invoker_service_account` - the email address of a service account to grant the `roles/run.invoker` role on the Cloud Run services. It can be any service account you can use to generate ID tokens. If left unset, Terraform won't add any additional principal to the Cloud Run services.
 
-## 3. Set environment variables
+## 3. Create a `.env_gradio` file.
+- Set the gradio app username and password using a local file that [python-dotenv](https://pypi.org/project/python-dotenv/) will read when the app launches.
+- The `.env_gradio` file is specifically excluded from the repo by `.gitignore` but included in the files sent to Cloud Build using a filename pattern in `.gcloudignore`.
+- The file must be in the repo root directory.
 ```sh
-export REPO_ROOT=$(git rev-parse --show-toplevel)
-export PROJECT='my-project-id' # replace with your project ID
-export REGION='us-central1'
+cd $REPO_ROOT
+
+user="'t2xdemouser01'" # replace with a username and keep the double and single quotes
+password="'reallysecurepassword'" # replace with a secure password and keep the double and single quotes
+
+cat << EOF > .env_gradio
+gradio_user=$user
+gradio_password=$password
+EOF
 ```
 
-## 4. Build & push the docker images and apply the Terraform configuration
+## 4. Set environment variables
+- Use the `set_variables.sh` script to configure the shell environment.
+```sh
+source ./terraform/scripts/set_variables.sh # change the path if necessary
+```
 
+## 5. Build & push the docker images and apply the Terraform configuration
 - Submit the build from the root directory as the build context.
 - [OPTIONAL] Omit the `_RUN_TYPE=apply` substitution to run a plan-only build and review the Terraform changes before applying.
 ```sh
 cd $REPO_ROOT
 gcloud builds submit . --config=cloudbuild.yaml --project=$PROJECT --region=$REGION --substitutions="_RUN_TYPE=apply" --impersonate-service-account=terraform-service-account@${PROJECT}.iam.gserviceaccount.com
 ```
+
+- Review the build logs in the [Cloud Build History](https://cloud.google.com/build/docs/view-build-results) to verify the build and deployment status.
+
+### Building the Docker images and applying the Terraform configuration will take some time.
+- Docker builds & pushes take ~5 minutes and must complete before Cloud Build uses Terraform to provisions resources.
+- First time Terraform provisioning of all resources takes ~7-10 minutes (Memorystore Redis will take ~5+ minutes individually).
+- Subsequent Terraform runs deploying only updated Cloud Run services take ~1.5 minutes (after the Docker images are built and pushed).
+
+### APPLICATION UPDATES
+- [OPTIONAL] Repeat step 4 if you restarted your shell session or made changes to the environment variables.
+- After making changes to the application code, repeat step 5 to build and push updated Docker images and apply the Terraform configuration to deploy to Cloud Run.
 
 
 &nbsp;
@@ -325,6 +319,14 @@ export AUDIENCE='https://34.54.24.62.nip.io/t2x-api' # replace with the Cloud Ru
 export RUN_INVOKER_SERVICE_ACCOUNT="run-invoker-service-account@${PROJECT}.iam.gserviceaccount.com" # replace with the run invoker service account email address
 export TOKEN=$(gcloud auth print-identity-token --impersonate-service-account=$RUN_INVOKER_SERVICE_ACCOUNT --audiences=$AUDIENCE)
 curl -X GET -H "Authorization: Bearer ${TOKEN}" "${AUDIENCE}/health"
+- Verify the TLS certificate is active and the endpoint is reachable using the `test_endpoint.sh` helper script.
+    - The script [authenticates](https://cloud.google.com/run/docs/authenticating/service-to-service) using a service account and the [Cloud Run custom audience](https://cloud.google.com/run/docs/configuring/custom-audiences) to [generate an ID token](https://cloud.google.com/docs/authentication/get-id-token#impersonation)
+- The server responds with a 200 status code and `{"status":"ok"}` if the endpoint is reachable and the TLS certificate is active.
+- *It may take some more time after the certificate reaches ACTIVE Managed status before the endpoint responds with success. It may throw an SSLError due to mismatched client and server protocols until changes propagate.*
+    - Example error: `curl: (35) LibreSSL/3.3.6: error:1404B410:SSL routines:ST_CONNECT:sslv3 alert handshake failure`
+- [OPTIONAL] Consider skipping to the [Stage document extractions](#stage-document-extractions) step first then return here to test the endpoint after allowing time for DNS propagation.
+```sh
+./terraform/scripts/test_endpoint.sh # change the path if necessary
 ```
 
 
@@ -390,6 +392,7 @@ gcloud storage cp -r "gs://$SOURCE_BUCKET/$DATASET_NAME/*" "gs://$STAGING_BUCKET
 &nbsp;
 # Prepare the Discovery Engine Data Store using Cloud Workflows
 ([return to top](#talk-to-docs-application-deployment-with-terraform))
+
 - Terraform provisions the `t2x-doc-ingestion-workflow`.
 - It requires a single input parameter, `dataset_name`, which is the folder name in the staging bucket containing the document extractions.
     - i.e. `gs://t2x-staging-my-project-id/source-data/extractions20240715` -> `"dataset_name": "extractions20240715"`.
@@ -399,24 +402,76 @@ gcloud storage cp -r "gs://$SOURCE_BUCKET/$DATASET_NAME/*" "gs://$STAGING_BUCKET
 - The metadata file gets created in the `data-store-metadata` top-level folder in a subfolder sharing the name of the extractions dataset.
 - In this example, the dataset name is `extractions20240715` and the metadata file is `metadata.jsonl`, already created in the staging bucket.
 ![Staging bucket structure](assets/extractions_metadata_jsonl.png)
-- Trigger the workflow using the `gcloud` CLI with the `workflows executions create` command.
+
+## 1. Trigger the workflow
+- Use the [Cloud Console](https://cloud.google.com/workflows/docs/executing-workflow#console) or the `trigger_workflow.sh` helper script.
+- **Pass the required [runtime argument](https://cloud.google.com/workflows/docs/passing-runtime-arguments) `dataset_name` to the workflow.**
+- `trigger_workflow.sh` CLI example:
 ```sh
 export PROJECT='my-project-id' # replace with your project ID
 export REGION='us-central1'
 export DATASET_NAME='{source_extractions_folder_path}' # replace with the source extractions folder path
 # i.e. with the full source path URI as 'gs://t2x-staging-${PROJECT_ID}/source-data/extractions20240715' -> 'extractions20240715'
-
-# [OPTIONAL] Use impersonation if your user account does not have the required permission to execute the workflow.
-export WORKFLOW_INVOKER_SERVICE_ACCOUNT="my-service-account@${PROJECT}.iam.gserviceaccount.com" # use any service account with permission to invoke and get workflow executions (https://cloud.google.com/workflows/docs/access-control#roles) that you can impersonate (requires the caller to have the roles/iam.serviceAccountTokenCreator role on the service account)
-
-gcloud workflows execute t2x-doc-ingestion-workflow --project=$PROJECT --location=$REGION --data="{\"dataset_name\":\"$DATASET_NAME\"}" --impersonate-service-account=$WORKFLOW_INVOKER_SERVICE_ACCOUNT
+./terraform/scripts/trigger_workflow.sh # change the path if necessary
 ```
-- Check the progress in the console or by issuing the `gcloud` command returned by `gcloud workflows execute`.
+example output:
+```
+user@cloudshell:~/talk-to-docs (argo-genai-sa)$ ./terraform/scripts/trigger_workflow.sh
+Setting environment variables...
+
+WARNING: Property validation for compute/region was skipped.
+Updated property [compute/region].
+
+PROJECT: argo-genai-sa
+REGION: us-central1
+TF_VAR_project_id: argo-genai-sa
+TF_VAR_terraform_service_account: terraform-service-account@argo-genai-sa.iam.gserviceaccount.com
+REPO_ROOT: /home/user/talk-to-docs
+
+Enter the name of the folder in the staging bucket containing
+the extractions to import to the Agent Builder Data Store.
+It will be located under the 'source-data' top-level folder.
+
+dataset_name: 
+extractions20240821
+
+WARNING: This command is using service account impersonation. All API calls will be executed as [terraform-service-account@argo-genai-sa.iam.gserviceaccount.com].
+WARNING: This command is using service account impersonation. All API calls will be executed as [terraform-service-account@argo-genai-sa.iam.gserviceaccount.com].
+Created [ff62fee3-9d49-40f0-b5dd-57c2a9f84384].
+
+To view the workflow status, you can use following command:
+gcloud workflows executions describe ff62fee3-9d49-40f0-b5dd-57c2a9f84384 --workflow t2x-doc-ingestion-workflow --location us-central1
+```
+
+## 2. Check the progress
+- View the Workflow status in the console or issue the `gcloud` command returned by `gcloud workflows execute`.
 - [OPTIONAL] To wait for the workflow to complete and return results from your terminal, issue this command after executing the workflow.
 ```sh
 gcloud workflows executions wait-last
 ```
 - The workflow returns all metadata about the import operation when it completes.
+```
+user@cloudshell:~/talk-to-docs (argo-genai-sa)$ gcloud workflows executions wait-last
+Using cached execution name: projects/453639229965/locations/us-central1/workflows/t2x-doc-ingestion-workflow/executions/ff62fee3-9d49-40f0-b5dd-57c2a9f84384
+Waiting for execution [ff62fee3-9d49-40f0-b5dd-57c2a9f84384] to complete...done.                                                                    
+argument: '{"dataset_name":"extractions20240821"}'
+createTime: '2024-08-29T23:27:00.162693944Z'
+duration: 362.133843868s
+endTime: '2024-08-29T23:33:02.296537812Z'
+labels:
+  goog-terraform-provisioned: 'true'
+name: projects/453639229965/locations/us-central1/workflows/t2x-doc-ingestion-workflow/executions/ff62fee3-9d49-40f0-b5dd-57c2a9f84384
+result: '{"body":{"done":true,"metadata":{"@type":"type.googleapis.com/google.cloud.discoveryengine.v1alpha.ImportDocumentsMetadata","create_time":"2024-08-29T23:27:10.510189Z","failure_count":"0","success_count":"513","total_count":"513","update_time":"2024-08-29T23:32:42.852553Z"},"name":"projects/453639229965/locations/us/collections/default_collection/dataStores/data-store-test/branches/0/operations/import-documents-5755255138805193551","response":{"@type":"type.googleapis.com/google.cloud.discoveryengine.v1alpha.ImportDocumentsResponse","error_config":{"gcs_prefix":"gs://453639229965_us_import_document/errors5755255138805194029"},"error_samples":[]}},"code":200,"headers":{"Alt-Svc":"h3=\":443\";
+  ma=2592000,h3-29=\":443\"; ma=2592000","Content-Length":"646","Content-Type":"application/json","Date":"Thu,
+  29 Aug 2024 23:33:02 GMT","Server":"Google Frontend","Via":"1.1 google","X-Cloud-Trace-Context":"fb0d5113d428b96d69d90b94b88c490e;o=1"}}'
+startTime: '2024-08-29T23:27:00.162693944Z'
+state: SUCCEEDED
+status:
+  currentSteps:
+  - routine: main
+    step: return_results
+workflowRevisionId: 000001-c99
+```
 
 
 &nbsp;
@@ -469,6 +524,10 @@ curl -X POST -H "Authorization: Bearer ${TOKEN}" -H "Content-Type: application/j
 13. You may see an "Error: Forbidden" message for about the first 5 minutes, but after that users with the "IAP-secured Web App User" role on the Project or IAP backend service should be able to access the app via the domain on the Load Balancer certificate plus the service path.
     - i.e. `https://app.example.com/t2x-ui/` or `https://35.244.148.105.nip.io/t2x-ui/`
     - The load balancer path requires a trailing slash `/`.
+12. Add a Google Identity (i.e a user or group) with the "IAP-secured Web App User" role.
+    - See the [Known Issues](#errors-adding-users-to-identity-aware-proxy) section for information about "Policy updated failed" errors due to the [Domain restricted sharing Org policy](https://cloud.google.com/resource-manager/docs/organization-policy/restricting-domains#example_error_message).
+13. You may see an "Error: Forbidden" message for about the first 5 minutes, but after that users with the "IAP-secured Web App User" role on the Project or IAP backend service should be able to access the app via the domain on the Load Balancer certificate.
+    - i.e. `https://app.example.com` or `https://35.244.148.105.nip.io`
 
 
 &nbsp;
@@ -493,13 +552,10 @@ curl -X POST -H "Authorization: Bearer ${TOKEN}" -H "Content-Type: application/j
     - Use a `.tfvars` file, the `-var` command line argument, or the `TF_VAR_` [environment variable](https://developer.hashicorp.com/terraform/language/values/variables#environment-variables).
 - Apply the Terraform configuration to update the Cloud Run service to the rollback target.
 
-### Examples
+### Example: select an image by digest or tag from Artifact Registry.
 - Set the project ID and service account environment variables.
 ```sh
-export REPO_ROOT=$(git rev-parse --show-toplevel) && cd $REPO_ROOT/terraform/main
-export PROJECT='my-project-id' # replace with your project ID
-export TF_VAR_project_id=$PROJECT
-export TF_VAR_terraform_service_account="terraform-service-account@${PROJECT}.iam.gserviceaccount.com"
+source ./terraform/scripts/set_variables.sh
 ```
 
 - Initialize the Terraform `main` module configuration with the remote state by passing required arguments to the partial backend.
@@ -507,10 +563,9 @@ export TF_VAR_terraform_service_account="terraform-service-account@${PROJECT}.ia
 tf init -backend-config="bucket=terraform-state-${PROJECT}" -backend-config="impersonate_service_account=terraform-service-account@${PROJECT}.iam.gserviceaccount.com"
 ```
 
-#### Example: select an image by digest or tag from Artifact Registry.
 - Set the Terraform input environment variables to the target image names.
 ```sh
-export TF_VAR_docker_image="us-central1-docker.pkg.dev/argo-genai-sa/talk-to-docs/t2x-api@sha256:4f2092b926b7e9dc30813e819bb86cfa7d664eede575539460b4a68bbd4981e1"
+export TF_VAR_docker_image_api="us-central1-docker.pkg.dev/argo-genai-sa/talk-to-docs/t2x-api@sha256:4f2092b926b7e9dc30813e819bb86cfa7d664eede575539460b4a68bbd4981e1"
 export TF_VAR_docker_image_ui="us-central1-docker.pkg.dev/argo-genai-sa/talk-to-docs/t2x-ui:latest"
 ```
 
@@ -519,20 +574,34 @@ export TF_VAR_docker_image_ui="us-central1-docker.pkg.dev/argo-genai-sa/talk-to-
 tf apply
 ```
 
-#### Example: get the deployed image names from terraform output to apply only infrastructure changes.
-- Set the Terraform input environment variables to the target image names from the Terraform output.
+
+&nbsp;
+# Execute Terraform to apply infrastructure-only changes to the `bootstrap` or `main` module.
+([return to top](#talk-to-docs-application-deployment-with-terraform))
+
+Applying the resources from the `bootstrap` module is a one-time setup for a new project. You can re-run it, for example, to add or enable additional APIs to support future development. You can apply infrastructure-only changes to the `main` module to update cloud resources without rebuilding the Docker images (and without using Cloud Build). If you don't provide docker image names as input variables, the `main` retrieves the last-deployed Docker images from the module state and reuses them in the Cloud Run services.
+
+1. Source the `set_variables.sh` script to configure the shell environment (provides variables including `PROJECT` and `REPO_ROOT`). Refer to the [Prerequisites](#prerequisites) section for details on configuring the `gcloud` CLI.
 ```sh
-export TF_VAR_docker_image=$(tf output -raw docker_image) && export TF_VAR_docker_image_ui=$(tf output -raw docker_image_ui)
+source ./terraform/scripts/set_variables.sh # change the path if necessary
 ```
 
-- Apply the Terraform configuration.
+2. Initialize the Terraform `main` or `bootstrap` module using a [partial backend configuration](https://developer.hashicorp.com/terraform/language/settings/backends/configuration#partial-configuration).
+    - See the [Terraform Backends](#terraform-backends) section for more information.
+    - You might need to [reconfigure the backend](#reconfiguring-a-backend) if you've already initialized the module.
+```sh
+cd $REPO_ROOT/terraform/main # or cd $REPO_ROOT/terraform/bootstrap
+tf init -backend-config="bucket=terraform-state-${PROJECT}" -backend-config="impersonate_service_account=terraform-service-account@${PROJECT}.iam.gserviceaccount.com"
+```
+
+3. Apply the Terraform configuration to provision the cloud resources.
 ```sh
 tf apply
 ```
 
 
 &nbsp;
-# [OPTIONAL] Prepare the Discovery Engine Data Store 'manually' using HTTP.
+# Prepare the Discovery Engine Data Store 'manually' using HTTP.
 ([return to top](#talk-to-docs-application-deployment-with-terraform))
 
 ## 1. Create metadata
@@ -609,22 +678,58 @@ curl -X GET -H "Authorization: Bearer ${TOKEN}" "${AUDIENCE}/get-operation?locat
 &nbsp;
 # Security
 ([return to top](#talk-to-docs-application-deployment-with-terraform))
-### The `t2x-app` Terraform modules follow security best practices for deploying resources in Google Cloud.
-- **Least privilege**: Assign the [minimum required permissions](https://cloud.google.com/iam/docs/using-iam-securely#least_privilege) to the T2X service account using these IAM roles:
-    - `roles/aiplatform.user`
-    - `roles/bigquery.dataEditor`
-    - `roles/bigquery.user`
-    - `roles/gkemulticloud.telemetryWriter`
-    - `roles/storage.objectUser`
-- **[Service account impersonation](https://cloud.google.com/iam/docs/service-account-impersonation)**: Use the `google_service_account_access_token` Terraform data source to generate short-lived credentials [instead of service account keys](https://cloud.google.com/iam/docs/best-practices-for-managing-service-account-keys#alternatives).
-- **Data encryption**:
-    - [Default encryption at rest](https://cloud.google.com/docs/security/encryption/default-encryption) for storage buckets and disk images.
-    - [Default encryption in transit](https://cloud.google.com/docs/security/encryption-in-transit#connectivity_to_google_apis_and_services) for GCE connections to Cloud Storage and other Google APIs. 
+
+## **Least privilege Service Account roles**
+Assign the [minimum required permissions](https://cloud.google.com/iam/docs/using-iam-securely#least_privilege) to the T2X service account using these IAM roles:
+- `roles/aiplatform.user`
+- `roles/bigquery.dataEditor`
+- `roles/bigquery.user`
+- `roles/gkemulticloud.telemetryWriter`
+- `roles/storage.objectUser`
+
+Assign specific Admin roles for the Terraform provisioning service account:
+- Artifact Registry Administrator (`roles/artifactregistry.admin`)
+- BigQuery Admin (`roles/bigquery.admin`)
+- Cloud Build Editor (`roles/cloudbuild.builds.editor`)
+- Cloud Memorystore Redis Admin (`roles/redis.admin`)
+- Cloud Run Admin (`roles/run.admin`)
+- Compute Admin (`roles/compute.admin`)
+- Discovery Engine Admin (`roles/discoveryengine.admin`)
+- DNS Admin (`roles/dns.admin`)
+- Project IAM Admin (`roles/resourcemanager.projectIamAdmin`)
+- Security Admin (`roles/iam.securityAdmin`) - required to [set IAM policies on DNS Managed Zones](https://cloud.google.com/dns/docs/zones/iam-per-resource-zones#expandable-1)
+- Service Account Admin (`roles/iam.serviceAccountAdmin`)
+- Service Account User (`roles/iam.serviceAccountUser`) - required to [attach service accounts to resources](https://cloud.google.com/iam/docs/attach-service-accounts)
+- Service Usage Admin (`roles/serviceusage.serviceUsageAdmin`)
+- Storage Admin (`roles/storage.admin`)
+- Vertex AI Administrator (`roles/aiplatform.admin`)
+- Workflows Admin (`roles/workflows.admin`)
+
+## **[Service account impersonation](https://cloud.google.com/iam/docs/service-account-impersonation)**
+Instead of creating and managing Service Account keys for authentication, this code uses an [impersonation pattern for Terraform](https://cloud.google.com/blog/topics/developers-practitioners/using-google-cloud-service-account-impersonation-your-terraform-code) to fetch access tokens on behalf of a Google Cloud IAM Service Account.
+
+- Grant the caller (a Google user account or group address) permission to generate [short-lived access tokens](https://cloud.google.com/iam/docs/create-short-lived-credentials-direct) on behalf of the targeted service account.
+    - The caller needs the Account Token Creator role (`roles/iam.serviceAccountTokenCreator`) or a custom role with the `iam.serviceAccounts.getAccessToken` permission that applies to the Terraform provisioning service account.
+    - Create a [role binding on the Service Account resource](https://cloud.google.com/iam/docs/manage-access-service-accounts#single-role) instead of the project IAM policy to [minimize the scope of the permission](https://cloud.google.com/iam/docs/best-practices-service-accounts#project-folder-grants).
+    - Perhaps counterintuitively, the primitive Owner role (`roles/owner`) does NOT include this permission.
+```sh
+export MEMBER='user:{your-username@example.com}' # replace '{your-username@example.com}' from 'user:{your-username@example.com}' with your Google user account email address
+# Example to add a group -> export MEMBER='group:devops-group@example.com'
+
+gcloud iam service-accounts add-iam-policy-binding "terraform-service-account@${PROJECT}.iam.gserviceaccount.com" --member=$MEMBER --role="roles/iam.serviceAccountTokenCreator"
+```
+- Use the `google_service_account_access_token` [Terraform data source](https://registry.terraform.io/providers/hashicorp/google/latest/docs/data-sources/service_account_access_token) to generate short-lived credentials [instead of service account keys](https://cloud.google.com/iam/docs/best-practices-for-managing-service-account-keys#alternatives).
+
+
+## **Data encryption**:
+- [Default encryption at rest](https://cloud.google.com/docs/security/encryption/default-encryption) for storage buckets and disk images.
+- [Default encryption in transit](https://cloud.google.com/docs/security/encryption-in-transit#connectivity_to_google_apis_and_services) for GCE connections to Cloud Storage and other Google APIs. 
 
 
 &nbsp;
 # Observability
 ([return to top](#talk-to-docs-application-deployment-with-terraform))
+
 ## Monitor and troubleshoot the T2X application deployment with Cloud Logging and Cloud Monitoring.
 - Log filters to view T2X application logs
 ```
@@ -783,7 +888,20 @@ tf apply -var-file="vars_$ENVIRONMENT.tfvars"
 &nbsp;
 # Known issues
 ([return to top](#talk-to-docs-application-deployment-with-terraform))
-The Terraform Google provider sometimes returns an inconsistent plan during `apply` operations. You can usually ignore the error messages because the resources get successfully created or updated.
+
+## Errors adding users to Identity-Aware Proxy
+### Problem
+When [adding members to the IAP-secured backend service](#configure-identity-aware-proxy), a [Domain restricted sharing Org policy](https://cloud.google.com/resource-manager/docs/organization-policy/restricting-domains) causes an error message like this:\
+![Policy update failed](assets/drs_error.png)\
+
+### Solution
+1. [Edit the policy](https://cloud.google.com/resource-manager/docs/organization-policy/creating-managing-policies#creating_and_editing_policies) to temporarily disable it.
+2. Add the members to IAP-protected backend service IAM policy.
+3. Re-enable the policy.
+
+## Inconsistent Terraform plan
+### Problem
+The Terraform Google provider sometimes returns an inconsistent plan during `apply` operations.
 
 Example:
 ```
@@ -798,7 +916,12 @@ Example:
 │ This is a bug in the provider, which should be reported in the provider's own issue tracker.
 ```
 
-Intermittent connectivity issues (for example, while using a VPN) can cause unresponsiveness during `plan` or `apply` operations. Retry the operation to clear the error.
+### Solution
+You can usually ignore the error messages because the resources get successfully created or updated. If the error persists, try running `terraform apply` again or refer to the provider's documentation.
+
+## Errors reading or editing Terraform resources
+### Problem
+Intermittent connectivity issues (for example, while using a VPN) can cause unresponsiveness during `plan` or `apply` operations.
 
 Example:
 ```
@@ -810,3 +933,6 @@ Example:
 │ 
 ╵
 ```
+
+### Solution
+Retry the operation to clear the error. If the error persists, check your network or VPN connection and try again.

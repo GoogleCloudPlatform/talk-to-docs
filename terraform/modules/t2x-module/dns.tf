@@ -22,5 +22,5 @@ resource "google_dns_record_set" "redis" {
 resource "google_dns_managed_zone_iam_member" "dns_reader" {
   managed_zone = google_dns_managed_zone.redis_private_zone.name
   role         = "roles/dns.reader"
-  member       = google_service_account.t2x_service_account.member
+  member       = var.t2x_service_account_member
 }

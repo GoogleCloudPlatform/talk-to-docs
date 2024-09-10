@@ -1,14 +1,15 @@
 resource "google_cloud_run_v2_service" "t2x" {
-  name         = var.service_name
-  location     = var.region
-  launch_stage = "GA"
-  ingress      = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
+  name                = var.service_name
+  location            = var.region
+  deletion_protection = false
+  launch_stage        = "GA"
+  ingress             = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
   custom_audiences = [
     "https://${var.global_lb_domain}/${var.service_name}",
   ]
 
   template {
-    service_account       = var.t2x_service_account
+    service_account       = var.service_account
     timeout               = "300s"
     execution_environment = "EXECUTION_ENVIRONMENT_GEN2"
 
@@ -48,21 +49,6 @@ resource "google_cloud_run_v2_service" "t2x" {
   }
 }
 
-# Create a resrouce-level IAM binding to allow the data mover service account to invoke the Cloud Run service.
-resource "google_cloud_run_service_iam_member" "t2x_data_mover_invoker" {
-  count   = var.cloud_run_invoker_service_account != null ? 1 : 0
-  service = google_cloud_run_v2_service.t2x.name
-  role    = "roles/run.invoker"
-  member  = "serviceAccount:${var.cloud_run_invoker_service_account}"
-}
-
-# Allow the IAP Service Agent to invoke the Cloud Run service.
-resource "google_cloud_run_service_iam_member" "iap_sa" {
-  service = google_cloud_run_v2_service.t2x.name
-  role    = "roles/run.invoker"
-  member  = var.iap_service_agent_member
-}
-
 resource "google_compute_region_network_endpoint_group" "t2x" {
   name                  = var.service_name
   network_endpoint_type = "SERVERLESS"
@@ -86,7 +72,7 @@ resource "google_compute_backend_service" "t2x" {
     group = google_compute_region_network_endpoint_group.t2x.id
   }
 
-  # Identity-Aware Proxy (IAP) requires manual configuration - ignore those changes
+  # Identity-Aware Proxy (IAP) for external apps requires manual configuration - ignore those changes.
   lifecycle {
     ignore_changes = [iap]
   }
