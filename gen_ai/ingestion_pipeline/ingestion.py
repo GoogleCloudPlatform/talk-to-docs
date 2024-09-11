@@ -1,23 +1,30 @@
-import os
+import copy
+import datetime
 import json
-import json5
+import os
 import re
-from langchain_community.llms import VertexAI
-from langchain.prompts import PromptTemplate
-from langchain.chains import LLMChain
-from langchain.schema.embeddings import Embeddings
+
 from gen_ai.common.common import load_yaml
 from gen_ai.common.embeddings_provider import EmbeddingsProvider
 from gen_ai.common.storage import DefaultStorage
 from gen_ai.common.vector_provider import VectorStrategy, VectorStrategyProvider
 
-import datetime
+# from gen_ai.common.ioc_container import provide_vector_indices
+import json5
+from langchain.chains import LLMChain
+from langchain.llms import VertexAI
+from langchain.prompts import PromptTemplate
+from langchain.schema.embeddings import Embeddings
 
-LLM_YAML_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), "ingestion_config.yaml")
+# from langchain_google_vertexai import HarmBlockThreshold, HarmCategory
+
+
+
+LLM_YAML_FILE = "gen_ai/ingestion_pipeline/ingestion_config.yaml"
 
 def replace_consecutive_whitespace(text):
     """Replaces consecutive whitespace characters of the same type with a single instance."""
-    return re.sub(r'(\s)\1+', r'\1', text)
+    return re.sub(r"(\s)\1+", r"\1", text)
 
 def parse_into_hashmap(processed_files_dir: str) -> dict[str, dict]:
     """
@@ -85,8 +92,7 @@ def provide_vector_indices(regenerate: bool = False):
     embeddings_name = config.get("embeddings_name")
     embeddings_model_name = config.get("embeddings_model_name")
     vector_name = config.get("vector_name")
-    dataset_name = config.get("dataset_name")
-    processed_files_dir = config.get("processed_files_dir").format(dataset_name=dataset_name)
+    processed_files_dir = config.get("processed_files_dir")
     vectore_store_path = config.get("vector_store_path")
 
     embeddings_provider = EmbeddingsProvider(embeddings_name, embeddings_model_name)
@@ -111,8 +117,8 @@ def clean_line(line: str) -> str:
     Returns:
         str: The cleaned line of text.
     """
-    line = re.sub(r'\s+', ' ', line).strip()
-    cleaned_line = re.sub(r'[^a-zA-Z0-9\s]', '', line)
+    line = re.sub(r"\s+", " ", line).strip()
+    cleaned_line = re.sub(r"[^a-zA-Z0-9\s]", "", line)
     return cleaned_line
 
 
@@ -131,7 +137,7 @@ def parse_text_to_dict(text: str, config: dict[str, str]) -> dict[str, str]:
     temperature = config["temperature"]
     max_output_tokens = config["max_output_tokens"]
     find_title_prompt = config["find_title_prompt"]
-    
+
     llm = None
 
     result = {}
@@ -139,7 +145,18 @@ def parse_text_to_dict(text: str, config: dict[str, str]) -> dict[str, str]:
     title_pattern = r"\*\*(.*?)\*\*$"
     if len(text_sections) == 1:
         if not llm:
-            llm = VertexAI(model_name=model_name, temperature=temperature, max_output_tokens=max_output_tokens)
+            # safety_settings = {
+            #     HarmCategory.HARM_CATEGORY_UNSPECIFIED: HarmBlockThreshold.BLOCK_NONE,
+            #     HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+            #     HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+            #     HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+            #     HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+            # }
+            llm = VertexAI(model_name=model_name, 
+                           temperature=temperature, 
+                           max_output_tokens=max_output_tokens, 
+                        #    safety_settings=safety_settings,
+            )
             title_template = PromptTemplate(input_variables=["text"], template=find_title_prompt)
             title_chain = LLMChain(
                 llm=llm,
@@ -151,7 +168,7 @@ def parse_text_to_dict(text: str, config: dict[str, str]) -> dict[str, str]:
             title = title_chain.run(text)
         except Exception as e: # pylint: disable=W0718
             print(f"Exception occured while creating title: {e}")
-            title = "Section " + text.split('\n')[0]
+            title = "Section " + text.split("\n")[0]
         result[title] = text
     else:
         for section in text_sections:
@@ -169,9 +186,9 @@ def parse_text_to_dict(text: str, config: dict[str, str]) -> dict[str, str]:
     return result
 
 
-def find_docs_and_ask_llm(sections_to_clean: dict[str, dict], 
-                          vector_indices, 
-                          documents_hashmap: dict[str, dict], 
+def find_docs_and_ask_llm(sections_to_clean: dict[str, dict],
+                          vector_indices,
+                          documents_hashmap: dict[str, dict],
                           config: dict[str, str]
 ) -> dict[str, dict]:
     """
@@ -198,14 +215,21 @@ def find_docs_and_ask_llm(sections_to_clean: dict[str, dict],
     template = config["test_content"]
     corrector_prompt = config["json_corrector_prompt"]
     similar_documents_count = config["similar_documents_count"]
-
+    # safety_settings = {
+    #     HarmCategory.HARM_CATEGORY_UNSPECIFIED: HarmBlockThreshold.BLOCK_NONE,
+    #     HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+    #     HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+    #     HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+    #     HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+    # }
     llm = VertexAI(
-        model_name=model_name, 
-        temperature=temperature, 
-        max_output_tokens=max_output_tokens
+        model_name=model_name,
+        temperature=temperature,
+        max_output_tokens=max_output_tokens,
+        # safety_settings=safety_settings
     )
     answer_template = PromptTemplate(
-        input_variables=["document", "changes"], 
+        input_variables=["document", "changes"],
         template=template
     )
     chain = LLMChain(
@@ -216,7 +240,7 @@ def find_docs_and_ask_llm(sections_to_clean: dict[str, dict],
         llm_kwargs={"response_mime_type": "application/json"},
     )
     json_corrector_template = PromptTemplate(
-        input_variables=["json"], 
+        input_variables=["json"],
         template=corrector_prompt
     )
     corrector_chain = LLMChain(
@@ -229,11 +253,11 @@ def find_docs_and_ask_llm(sections_to_clean: dict[str, dict],
 
     removals = {}
     for policy_number, policy_data in sections_to_clean.items():
-        documents_hashmap[policy_number] = documents_hashmap["generic"].copy()
+        documents_hashmap[policy_number] = copy.deepcopy(documents_hashmap["generic"])
         for doc_key, sections_data in policy_data.items():
             print(f"Processing {doc_key}, {len(sections_data)} items")
             for topic, text in sections_data.items():
-                documents = vector_indices.similarity_search(topic, k=similar_documents_count) 
+                documents = vector_indices.similarity_search(topic, k=similar_documents_count)
                 for document in documents:
                     key = f'{document.metadata["original_filepath"]} - {document.metadata["section_name"]}'
                     if key == doc_key:
@@ -263,7 +287,7 @@ def find_docs_and_ask_llm(sections_to_clean: dict[str, dict],
                         print("-"*50)
                     except Exception as e:
                         try:
-                            modified_output = corrector_chain.run(json=modified_output)
+                            modified_output = corrector_chain().run(json=modified_output)
                             modified_output = modified_output.replace("```json", "").replace("```", "")
                             the_output = json5.loads(modified_output)
                             modified_text = the_output["new_content"]
@@ -313,7 +337,7 @@ def save_files_to_disk(documents_hashmap: dict[str, dict], output_dir: str):
             try:
                 with open(filepath, "w") as f:
                     f.write(data["content"])
-                files_created += 1 
+                files_created += 1
                 metadata = data.copy()
                 metadata.pop("filename")
                 metadata.pop("content")
@@ -321,7 +345,7 @@ def save_files_to_disk(documents_hashmap: dict[str, dict], output_dir: str):
                 metadata_filepath = os.path.join(output_dir, filename.replace(".txt", "_metadata.json"))
                 with open(metadata_filepath, "w") as f:
                     json.dump(metadata, f)
-                files_created += 1 
+                files_created += 1
             except IOError as e:
                 print(f"Error writing file: {e}")
             except json.JSONDecodeError as e:
@@ -355,16 +379,18 @@ def extract_sections_and_create_new_docs(specific_docs: dict[str, dict], config:
     for policy_number, policy_data in specific_docs.items():
         for doc_key, doc in policy_data.items():
             for title, body in parse_text_to_dict(doc["content"], config).items():
+                clean_title = re.sub(r"[^a-zA-Z0-9 -]", "", title)
+
                 if policy_number not in sections_to_clean:
                     sections_to_clean[policy_number] = {}
                 if doc_key not in sections_to_clean[policy_number]:
                     sections_to_clean[policy_number][doc_key] = {}
-                sections_to_clean[policy_number][doc_key][title] = body
-                
-                new_doc_key = f"{doc_key} {title}"
+                sections_to_clean[policy_number][doc_key][clean_title] = body
+
+                new_doc_key = f"{doc_key} {clean_title}"
                 new_doc = doc.copy()
-                new_doc["section_name"] = f"{doc['section_name']} {title}"
-                new_doc["filename"] = f"{doc['filename'].replace('.txt', '')}_{title.lower().replace(' ', '_')}.txt"
+                new_doc["section_name"] = f"{doc['section_name']} {clean_title}"
+                new_doc["filename"] = f"{doc['filename'].replace('.txt', '')}_{clean_title.lower().replace(' ', '_')}.txt"
                 new_doc["content"] = body
                 if policy_number not in new_documents_hashmap:
                     new_documents_hashmap[policy_number] = {}
@@ -405,13 +431,15 @@ def run_the_pipeline():
 
     # 2. go thru files in the directory, if has "Specific .." in section_name call the process
     specific_docs = {pn: docs for pn, docs in documents_hashmap.items() if pn != "generic"}
-    documents_hashmap = {"generic":documents_hashmap["generic"]}
+    documents_hashmap = {"generic": documents_hashmap["generic"]}
     print(f"Found Specific Docs: {sum(map(len, specific_docs.values()))}")
 
     # 3. GO thru each section inside the processed KM file and isolate the data in it. Call another function that takes this data as argument (title and text)
     sections_to_clean, new_documents_hashmap = extract_sections_and_create_new_docs(specific_docs, config)
     print(f"Found documents with items to clean: {len(sections_to_clean)}")
-    
+
+    sections_to_clean["905531"] = {}
+
     # 4. The function that receives title and text searches data inside the data store and gets all documents related to it. Once it gets it, it will run call to llm that needs to return modified text
     removals = find_docs_and_ask_llm(sections_to_clean, vector_indices, documents_hashmap, config)
 
@@ -425,7 +453,6 @@ def run_the_pipeline():
             real_removal += 1
     print(f"Real removals in : {real_removal}")
 
-    
     # 6. once done with the processing, save files
     for policy_number, policy_data in new_documents_hashmap.items():
         documents_hashmap[policy_number].update(policy_data)

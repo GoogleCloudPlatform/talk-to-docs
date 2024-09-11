@@ -1,13 +1,74 @@
 embeddings_name: vertexai
 embeddings_model_name: textembedding-gecko@003
 vector_name: chroma
-processed_files_dir: input_full
-output_dir: testing_0819
+processed_files_dir: output_0911/
+output_dir: ingesting_output_20240911
 vector_store_path: gen_ai/vector_store
 model_name: gemini-1.5-pro-001
 temperature: 0.5
 max_output_tokens: 8024
 similar_documents_count: 5
+
+test_content_mod: |
+  You are the smart agent that helps create medical documentation and expert doctor with MD degree. You help finding and eliminating controversies in medical documents.
+  <Instruction>
+  - You are given the Document and Changes
+  - You need to find in Documents parts that are related to Changes
+  - If the Changes contradicts or is different to information in Document you need to return the modified content of Document with removed contradicting or changed parts
+  - If there is no information related to Changes you need to return the original Document
+  - The output MUST BE A VALID JSON. This requires the following:
+    - Ensure that the JSON structure includes curly braces at the beginning and end of the object.
+    - Use double quotes for all keys and string values.
+    - Ensure that keys and values are separated by a colon.
+    - Separate multiple key-value pairs with commas.
+    - Avoid trailing commas after the last key-value pair.
+    - Avoid ticks "`"" and triple ticks "```"" in the response.
+    - Special characters in strings should be escaped using backslashes (e.g., use \\" for double quotes within strings).
+  - You need to provide the response in the following JSON format:
+    {{
+      "new_content": "Here provide the modified document",
+    }}
+  </Instruction>
+  <Examples>
+    <Example1>
+      <Document>
+        Colonoscopy and Screenings
+        UnitedHealthcare supports prevetive care, including colon cancer screenings for FI and ASO members who follow standard preventive coverage.  
+        **Types of Covered Colon Cancer Screenings**
+        ============================================
+        * Colonoscopy
+        * Virtual Colonoscopy (CT colonography)
+        * Sigmoidoscopy
+        * Stool-based screenings including:
+          + Fecal DNA testing - Cologuard (CPT code 81528)  
+          **Notes:**  
+            - Preventive coverage for members 45-75; once every 3 years
+            - Refer to the plan's Preventive Care Services corporate policy.
+            - When not covered under preventive, fecal DNA testing is covered under the Laboratory benefit.
+            - Contracted with Exact Sciences; review National Ancillary Providers.
+          + Fecal-occult blood test immunoassay (HCPCS code G0328):  
+          **Note:** Annual screening is recommended.
+            - Fecal immunochemical test (FIT)
+            - Fecal occult blood test (FOBT)
+      </Document>
+      <Changes>
+        Colonoscopy Coverage \nThere is no frequency limit or age requirement. 
+      </Changes>
+      <Output>
+      {{
+        "new_content": "Colonoscopy and Screenings \nUnitedHealthcare supports prevetive care, including colon cancer screenings for FI and ASO members who follow standard preventive coverage. \n **Types of Covered Colon Cancer Screenings** \n   ============================================ \n * Colonoscopy \n  * Virtual Colonoscopy (CT colonography) \n * Sigmoidoscopy \n * Stool-based screenings including: \n  + Fecal DNA testing - Cologuard (CPT code 81528) \n **Notes:** \n - When not covered under preventive, fecal DNA testing is covered under the Laboratory benefit.\n - Contracted with Exact Sciences; review National Ancillary Providers. \n + Fecal-occult blood test immunoassay (HCPCS code G0328):\n**Note:** Annual screening is recommended.\n - Fecal immunochemical test (FIT) \n - Fecal occult blood test (FOBT)"
+      }}
+      </Output>
+    </Example1>
+  </Examples>
+
+  <Document>
+  {document}
+  </Document>
+  <Changes>
+  {changes}
+  </Changes>
+
 
 test_content: |
   You are the smart agent that helps create medical documentation and expert doctor with MD degree. You help finding and eliminating controversies in medical documents.
