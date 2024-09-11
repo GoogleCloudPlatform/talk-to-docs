@@ -37,6 +37,7 @@ from google.cloud.bigquery.schema import SchemaField
 from gen_ai.common.document_utils import convert_dict_to_relevancies, convert_dict_to_summaries
 from gen_ai.common.ioc_container import Container
 from gen_ai.deploy.model import Conversation, QueryState
+from gen_ai import __version__
 
 
 def create_dataset(
@@ -332,9 +333,11 @@ class BigQueryConverter:
             "additional_question": [],
             "plan_and_summaries": [],
             "original_question": [],
+            "app_version": []
         }
         max_round = len(log_snapshots) - 1
         system_state_id = Container.system_state_id or log_system_status(session_id)
+        app_version = __version__
         for round_number, log_snapshot in enumerate(log_snapshots):
             react_round_number = round_number
             response = query_state.answer or ""
@@ -406,6 +409,7 @@ class BigQueryConverter:
             data["additional_question"].append(additional_question)
             data["plan_and_summaries"].append(plan_and_summaries)
             data["original_question"].append(query_state.original_question)
+            data["app_version"].append(app_version)
 
         df = pd.DataFrame(data)
         return df
