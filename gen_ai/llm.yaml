@@ -929,7 +929,7 @@ simple_react_chain_prompt: |
     </Example3>
     <Example4>
       <Question> 
-        What are the in-network and out-of-network deductibles for acupuncture service for an individual?
+        What is the in-network deductible for an individual? 
       </Question>
       <Previous Conversation>
         ""
@@ -941,51 +941,19 @@ simple_react_chain_prompt: |
         DOCUMENT TITLE: About Your Benefits
         DOCUMENT SECTION NAME: Deductibles
         DOCUMENT CONTENT:
-          INN\nYour cost if you use Network benefits\nIndividual Deductible\n **$1600**\n Family Deductible\n **$3200** \\*\n \\* For family coverage, no one in your family is allowed to receive benefits until the family annual deductible is met.\nType: OON\nYour cost if you use Out-of-Network benefits\nIndividual Deductible\n **$3200**\n Family Deductible\n **$6400** \\*\n \\* For family coverage, no one in your family is allowed to receive benefits until the family annual deductible is met.
-          \nINN: 10% co-insurance after you pay the deductible. \nOON:40% coinsurance after you pay the deductible. You do not need to get prior authorization before getting this care.\n
+        Type: INN\nYour cost if you use Network benefits\nIndividual Deductible\n **$1600**\n Family Deductible\n **$3200** \\*\n \\* For family coverage, no one in your family is allowed to receive benefits until the family annual deductible is met.\nType: OON\nYour cost if you use Out-of-Network benefits\nIndividual Deductible\n **$3200**\n Family Deductible\n **$6400** \\*\n \\* For family coverage, no one in your family is allowed to receive benefits until the family annual deductible is met.\n
       </b360_context>
-            The JSON response for the round number 1 for the question "What is the in-network and out-of-network deductibles for acupuncture service for an individual?".
+            The JSON response for the round number 0 for the question "What is the in-network deductible for an individual?".
       <Output>
-        {{'round_number': 1, 
-        'plan_and_summaries': 'The question is asking for the in-network and out-of-network deductibles for acupuncture service for an individual. I will check the b360 document for information on deductibles and then the kc document for the specific plan details including deductible and coinsurance amounts.', 
-        'answer': 'Acupuncture services are covered under the plan. 
-          For family coverage, no one in members family is allowed to receive benefits until the family annual deductible is met. 
-          The co-insurance for acupuncture services is 15% after the deductible is met. The plan has a limit of 25 visits per calendar year.  
-          Acupuncture services must be performed in an office setting by a provider who is practicing within the scope of their license or who is certified: Doctor of Medicine, Doctor of Osteopathy, Chiropractor, Acupuncturist.', 
-        'context_used': ['special services', 'deductibles'], 
-        'additional_information_to_retrieve': 'What are INN and OON deductible amounts for acupuncture service?',
-        'confidence_score': 70, 
-        "answer_confidence_reasoning": 'The answer does not have the exact dollar amounts for INN and OON coverage, which is applicable to this benefit and is present in the context provided. Therefore the confidence_score is penalized'}}
-        }}
-
-        The "confidence_score" is 70 and the additional question is What are INN and OON deductible amounts for acupuncture service?
-        Based on the original question "What is the in-network and out-of-network deductibles for acupuncture service for an individual?" 
-        and the context provided: b360_context and kc_context I need to rework my response to add the missing details to the response. 
-        The context has the following informatiom that I will add to the response: 
-          INN\nYour cost if you use Network benefits\nIndividual Deductible\n **$1600**\n Family Deductible\n **$3200** \\*\n \\* For family coverage, no one in your family is allowed to receive benefits until the family annual deductible is met.
-        The updated response that I will return as the output is:
-
-        {{'round_number': 1, 
-        'plan_and_summaries': 'The question is asking for the in-network and out-of-network deductibles for acupuncture service for an individual. I will check the b360 document for information on deductibles and then the kc document for the specific plan details including deductible and coinsurance amounts.', 
-        'answer': 'Acupuncture services are covered under the plan. 
-                  **INN:**
-                   *10% co-insurance after member pays the deductible.
-                  **OON:**
-                   *40% coinsurance after member pays the deductible. Member does not need to get prior authorization before getting this care.
-                  **Dedudctibles:**
-                    * The in-network deductible for an individual is $1600.                     
-                    * The family deductible is $3200. *For family coverage, no one in member's family is allowed to receive benefits until the family annual deductible is met.  
-                    * The out-of-network deductible for an individual is $3200.
-                    * The family deductible is $6400. *For family coverage, no one in member's family is allowed to receive benefits until the family annual deductible is met.  
-                    * The co-insurance for acupuncture services is 15% after the deductible is met.  
-                  **Limits and Exceptions**
-                    The plan has a limit of 25 visits per calendar year.  
-                    Acupuncture services must be performed in an office setting by a provider who is practicing within the scope of their license or who is certified: Doctor of Medicine, Doctor of Osteopathy, Chiropractor, Acupuncturist.', 
-        'context_used': ['special services', 'deductibles'], 
-        'additional_information_to_retrieve': '',
-        'confidence_score': 100, 
-        "answer_confidence_reasoning": 'The answer contains all the information needed, is complete and helpful. Therefore the score is 100.'}}
-        }}
+        {{"plan_and_summaries":'The question is asking for the in-network deductible for an individual. I will check the b360 document for information on deductibles and then the kc document for the specific plan details including deductible and coinsurance amounts.
+        INN\nYour cost if you use Network benefits\nIndividual Deductible\n **$1600**\n Family Deductible\n **$3200** \\*\n \\* For family coverage, no one in your family is allowed to receive benefits until the family annual deductible is met.\nType: OON\nYour cost if you use Out-of-Network benefits\nIndividual Deductible\n **$3200**\n Family Deductible\n **$6400** \\*\n \\* For family coverage, no one in your family is allowed to receive benefits until the family annual deductible is met.\n',
+        "answer": "The in-network deductible for an individual is $1600. 
+          The family deductible is $3200. 
+          For family coverage, no one in your family is allowed to receive benefits until the family annual deductible is met.",
+        "additional_information_to_retrieve": "",
+        "context_used": "['deductibles']",
+        "confidence_score": 100,
+        "answer_confidence_reasoning": "The answer includes INN (in-network) deductibles information, including family deductible. Additionally the answer includes, the caveats provided in the relevant context after the "*" i.e. For family coverage, no one in your family is allowed to receive benefits until the family annual deductible is met. And it is based on the factual information. Therefore the confidence in this response is 100."}}
       </Output>
     </Example4>
 
