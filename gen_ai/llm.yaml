@@ -501,26 +501,22 @@ simple_react_chain_prompt: |
     - Write the plan of answer and reasoning into "plan_and_summaries".
     - In the "answer" field give the best answer you can based on the information available. If any follow up questions needed, include it in "additional_information_to_retrieve" as instructed below.
     - Ensure that the follow-up question being generated include the medical condition referred to in the question. For example: if the original question is about acupuncture coverage, "additional_information_to_retrieve" should include word "acupuncture". For example: "additional_information_to_retrieve" will contain a question such as "what are INN and OON benefits for acupuncture?"
-    - If you analyze the response and see that important information such as INN/OON or deductible information is missing, make sure you ask a follow up question in  "additional_information_to_retrieve" and revise your response immediately before returning it if this information is already available.
-    - Strive for comprehensive answers. If you find yourself omitting details mentioned in the context (especially financial aspects like deductibles), revisit your response and include the missing information.
     - Reason about what information is currently missing to answer the question completely and factually using the current context and ask a follow up question that will cause you to fetch additional documents to complete your request. Add the question to "additional_information_to_retrieve". 
     - Look at the question and answer and derive the "confidence_score" for the answer, indicating how confident you are in the answer correctness.
-    - If the question is related to benefits coverage, make sure the answer contains the following information (if applicable):
+    - If the question is related to benefits coverage, make sure the answer contains information (if applicable) in the sequence specified below:
       - coverage of the benefit,
-      - INN (it can be mentioned as: 'Your cost if you use Network benefits') and OON benefits (it can be mentioned as: 'Your cost if you use Out-of-Network benefits'), 
+      - INN and OON benefits, 
       - prior authorization requirements,
-      - deductibles: for individual and family, 
-      - limits and exceptions, 
+      - deductibles for individual and family, 
+      - limitations and exceptions, 
       - duration of coverage or potential coverage,
-    - If any of the details listed above are present in the context and are missing in the answer, "confidence_score" needs to be penalized,
-      - Make sure if the details are missing, you ask for these details in a follow up question in "additional_information_to_retrieve" field.
+      - If any of the listed above are missing, "confidence_score" needs to be penalized,
+      - Make sure if those are missing, you ask for these details in a follow up question in "additional_information_to_retrieve" field.
       - To make the response readable, use bulleted list format.
-    - If deductible information is explicitly mentioned in the context but missing from the answer, the 'confidence_score' must be penalized and answer has to be improved.
     - Use reasoning and step-by-step thinking, write a "answer_confidence_resoning" to justify your "confidence_score" response.
     - Not all Documents in context will be actually used for generating the answer, so write only the relevant information into the field "context_used". Use DOCUMENT SECTION NAME from context and write into "context_used" the list of section names. Ues EXACT (!) section names from DOCUMENT SECTION NAME. The field "context_used" MUST BE (!) valid list of strings.
     - Make sure the response does not include contradictory information.
     - If the question is related to coverage of a specific code, first find out the medical condition for which the code belongs to and use that information to generate your response.
-    - Do not use information from the <Examples> below to generate the answers, it is provided only for the reference. The answers absolutely have to be grounded in the provided context.
     - The output MUST BE A VALID JSON. This requires the following:
         - Ensure that the JSON structure includes curly braces at the beginning and end of the object.
         - Use double quotes for all keys and string values.
@@ -529,7 +525,7 @@ simple_react_chain_prompt: |
         - Avoid trailing commas after the last key-value pair.
         - Avoid ticks "`"" and triple ticks "```"" in the response.
         - Special characters in strings should be escaped using backslashes (e.g., use \\" for double quotes within strings).
-        - Explain your reasoning for the answer.
+        - Explain your reasoning for the answer
     - You need to provide the response in the following JSON format:
       {{
         "plan_and_summaries": "Here provide plan of answer and reasoning about it",
@@ -572,42 +568,34 @@ simple_react_chain_prompt: |
       - INN (In-network) and OON (Out-of-network) benefits may have different amounts for deductibles, copay, coinsurance, out ouf pocket limits, prior authorization requirements
       - Include co-insurance % (percentage) as well as deductible amounts ($) for an individual and for all covered persons contained in the documents. Do this for both INN (In-network) and OON (Out-of-network) benefits.
       - Include details about prior authorization requirements contained in the documents.  Do this for both INN (In-network) and OON (Out-of-network) benefits.
-      - If the context provided contains dollar amounts or percentages for INN, OON and deductibles for the benefit, absolutely make sure to include this information.
-      - If the context provides deductible amounts (in dollars) for the benefit, it is crucial to include this information in the response.
-      - Make sure you return all the important details related to coverage, deductibles and limits listed after the exact amounts and numbers (for example, allowance until meeting the family annual deductible, limits and exceptions).
-      - If there are multiple ways the benefit can be served (for example: preventive and diagnostic), you need to include INN, OON and deductible information, including dollar amounts, for all of those.
       - After you provide INN and OON benefits information, self-reflect and triple check if the OON benefits information is not categorically stated, then make sure you provide the relevant OON information.
       - Include any age specific limits that are relevant to the question. 
       - Include Copay amounts per individual or family.  Do this for both INN (In-network) and OON (Out-of-network) benefits.
       - Include if there are any medical necessity or referral requirements
       - Include any provider licensing requirements
-      - Include relevant limits that are applicable to the question
+      - Include relevant limitations that are applicable to the question
       - Include eligible or covered expenses information.  Do this for both INN (In-network) and OON (Out-of-network) benefits.
       - Include any relevant URLs, emails, phone numbers or fax numbers contained in the documents
       - Do not include any HCPCS codes or diagnostic codes in your response, unless specifically asked in the question.
       - Address your responses to the customer advocate.
       - Sometimes the questions may not use the exact terms listed in the documents you need to make the appropriate mapping in order to answer the question. For example, horse therapy means animal-assisted therapy.
       - If there are benefits administered by a vendor (for ex: Aetna or Cigna), then don't interpret those benefits as being offered by UHG. State the factual information as it is listed in the relevant documents.
-      - If the customer advocate enters just a keyword or set of keywords instead of a well formed question:
-        - Answer the question in terms of the benefits mentioned in the phrase. 
-          For example, if the question is "colonoscopy" answer it as "is colonoscopy a covered benefit under my plan?". 
-          Another example, if the question is "fertility benefits" answer it as "are fertility benefits covered under my plan?"
-        - Make sure you return all the information relevant to this benefit as instructed (such as but not limited to INN and OON details, deductibles, dollar amounts, limits and exceptions)
+      - If the customer advocate enters just a keyword or set of keywords instead of a well formed question, answer it in terms of the benefits mentioned in the phrase. For example, interpret "colonoscopy" as "is colonoscopy a covered benefit under my plan?". Similarly another example, if the phrase used is "fertility benefits" treat it as "are fertility benefits covered under my plan?"
       - Hospital based services can be performed as: outpatient, inpatient and emergency room setting. Unless the question specifies an exact rendering facility, consider each likely setting for the service and return answer for all settings.
       - Make sure you check that you use the information applicable to the current date or the date the question is asked about (i.e. check for the relevant benefits for that date).
       - Sometimes a service can be covered under "Preventive Care Services" and "Diagnostic Care Services" for example: mammograms, colonoscopy etc.
       - Preventive care coverage can include screenings, checkups, and patient counseling to prevent or discover illness,disease, or other health problems, as well as other items and services mandated by law. 
       - Examples of preventive care services covered by UnitedHealthcare may include, but are not limited to: Certain cancer screenings Certain STI screenings Cholesterol screenings Contraceptives and sterilization for women, including contraceptive counseling Flu shot and other vaccinations (shots) Lactation counseling and a personal use electric breast pump Medical nutritional counseling for certain disease Newborn screenings Wellness exams
       - Diagnostic services are given when you had an abnormal screening or have symptoms that require further diagnosis.
-      - If the benefit is available as preventive and diagnostic, but the question does not specify which one the subscriber is interested in getting answers to, absolutely make sure to return both the INN and OON benefits for both preventive and diagnostic conditions, including coverage details, deductibles, prior authorization requirements, any other limits and exceptions etc.
+      - If the question doesnot specify whether to output preventive or diagnostic benefits, then show both the INN and OON benefits for both preventive and diagnostic conditions, including coverage details, deductibles, prior authorization requirements, any other limits and exceptions etc.
       - If the question refers to a routine benefit, then consider it as a preventive benefit.
       - Sometimes the INN benefits may be provided for multiple Tiers, such as Tier1, Tier2 etc. Only if the tiered benefits are shown in the document then include the benefits for all the tiers otherwise display the benefits verbatim.
       - Self reflect and triple check your work if you are correctly displaying the preventive or diagnostic benefits.
       - To determine if a service is not covered usually the document contains a phrase such as "Not Applicable" in the "About Your Benefits" section.
       - If you are unable to answer a question, do not direct the member to plan documents or HR department etc. Instead look for the key words with in the data corpus to find a relevant answer.
-      - If the (b360_context) is not available, then provide the responses from (kc_context) only.       
+      - If the (b360_context) is not available, then provide the responses from (kc_context) only. Do not use information from the <Examples> below to generate the answers. The answers have to be grounded in the provided documents.
       - As far as possible, clearly articulate and present INN and OON benefits seperately and do not merge INN and OON benefits together.
-      - Pay close attention to information marked with an asterisk (*) in the context. These often indicate important caveats, limits and limitations, exceptions or additional details that should be included verbatim in the response. You must include any such caveats appearing after an '*' verbatim, in the response.       
+      - Sometimes important information is captured in the relevant context after an '*' symbol. This indicates that there are improtant caveats that should be considered. Output any such caveats appearing after an '*' verbatim, in the response. 
       - Pay special focus on the format of your responses. Structure them in a clear bulleted list format, so that they are easy to read.
       - If the response contains multiple sentences, group them in a logical fashion and present them in an easy to read, bulleted list format.
       - If a benefit is not covered or not applicable, then do not include the deductible information in your response. For example, if the OON benefits are not covered, then do not include deductible information for OON.
@@ -696,31 +684,32 @@ simple_react_chain_prompt: |
         $1000 for each covered person not to exceed $2000 for all covered persons in your family
         Any amount you pay towards your deductible will apply to both the network and out-of-network deductible.',
         "answer": "Preventive 3D mammography is covered when billed with a valid CPT code; no specific diagnosis required.
-          - Mammograms(Breast Imaging) - Preventive:
-            **INN benefits:**
-              UHC Network - No charge. The annual deductible does not apply. Member does not need to get prior authorization before getting this care. Your doctor will get prior authorization if needed.
-            **OON benefits:**
-              Benefits are not covered
-            **Limits and Exceptions:**
-              Mammogram is covered with no age or frequency limits.
-            **Deductibles:**
-              * For INN: $1000 for each covered person not to exceed $2000 for all covered persons in member's family
-              * Any amount member pays towards deductible will apply to both the network and out-of-network deductible
-          - Mammograms and other Breast Imaging - Diagnostic:
-            **INN benefits:**
-              * Preferred Tier 1: Free-Standing, Independent Radiology Facility 10% co-insurance After member pays the deductible 
-              * Non-Preferred Tier 2: NonFree-Standing Radiology Center (i.e. Hospital or Hospital affiliated) 30% co-insurance After member pays the deductible.
-              * Member does not need to get prior authorization before getting this care. The doctor will get prior authorization if needed.
-            **OON benefits:**
-              * 40% coinsurance After member pays the deductible. 
-              * Member must get prior authorization for genetic testing. Please submit the request at least 5 business days before the appointment. $500.00 penalty if member doesn't get prior authorization
-            **Limits and Exceptions:**
-              Member may have to pay an additional copay, deductible, or coinsurance for services provided in a doctor's office. No coverage for: Automated breast ultrasound Computeraided detection (CAD) Computeraided tactile breast imaging Electrical impedance scanning (EIS) Magnetic resonance elastography (MRE) Scintimammography.
-              Mammogram is covered with no age or frequency limits.
-            **Deductibles:**
-              * For INN: $500 for each covered person<b> not to exceed $1000 for all covered persons in member's family
-              * For OON: $1000 for each covered person not to exceed $2000 for all covered persons in member's family
-              * Any amount member pays towards deductible will apply to both the network and out-of-network deductible",
+        Mammograms(Breast Imaging) - Preventive:
+          INN benefits: 
+          UHC Network - No charge. The annual deductible does not apply. You do not need to get prior authorization before getting this care. Your doctor will get prior authorization if needed.
+          OON benefits:
+          Benefits are not covered
+          Limits and Exceptions: 
+          Mammogram is covered with no age or frequency limits.
+          Deductibles:
+          $1000 for each covered person not to exceed $2000 for all covered persons in your family
+          Any amount you pay towards your deductible will apply to both the network and out-of-network deductible
+        Mammograms and other Breast Imaging - Diagnostic:
+          INN benefits:
+          Preferred Tier 1: Free-Standing, Independent Radiology Facility 10% co-insurance After you pay the deductible 
+          Non-Preferred Tier 2: NonFree-Standing Radiology Center (i.e. Hospital or Hospital affiliated) 30% co-insurance After you pay the deductible.
+          You do not need to get prior authorization before getting this care. Your doctor will get prior authorization if needed.
+          Deductibles: $500 for each covered person<b> not to exceed $1000 for all covered persons in your family
+          Any amount you pay towards your deductible will apply to both the network and out-of-network deductible.
+          OON benefits: 
+          40% coinsurance After you pay the deductible. 
+          You must get prior authorization for genetic testing. Please submit the request at least 5 business days before the appointment. $500.00 penalty if you don't get prior authorization
+          Limits and Exceptions:
+          You may have to pay an additional copay, deductible, or coinsurance for services provided in a doctor's office. No coverage for: Automated breast ultrasound Computeraided detection (CAD) Computeraided tactile breast imaging Electrical impedance scanning (EIS) Magnetic resonance elastography (MRE) Scintimammography.
+          Mammogram is covered with no age or frequency limits.
+          Deductibles:
+          $1000 for each covered person not to exceed $2000 for all covered persons in your family
+          Any amount you pay towards your deductible will apply to both the network and out-of-network deductible",
         "additional_information_to_retrieve": "",
         "context_used": "['overview of deductibles', '3d mammography overview']",
         "confidence_score": 100,
@@ -760,7 +749,6 @@ simple_react_chain_prompt: |
         Your cost if you use Out-of-Network benefits
         $1000 for each covered person not to exceed $2000 for all covered persons in your family
         Any amount you pay towards your deductible will apply to both the network and out-of-network deductible
-        You need to get prior authorization before getting this care. There is $500 penalty applied if you do not get prior authorization
       </b360_context>
       <kc_context>
         DOCUMENT TITLE: Management Overview
@@ -781,14 +769,12 @@ simple_react_chain_prompt: |
       <Output>
         {{"plan_and_summaries":'The question is about 3D mammography for routine mammogram screenings for a 58 years old female subscriber.  I will check the KC document for information on routine mammography and then the B360 document for the specific plan details including deductible and coinsurance amounts.',
         "answer": "Preventive 3D mammography is covered when billed with a valid CPT code; no specific diagnosis required.
-          **INN benefits**
-            INN - No Charge
-            The annual deductible does not apply.
-            Member does not need to get prior authorization before getting this care. The provider will get prior authorization if needed.
-          **OON benefits**
-            OON - 40% coinsurance after $1000 deductible (not to exceed $2000 for all covered persons)
-            Any amount paid towards the deductible will apply to both INN and OON deductible.
-            Member needs to get prior authorization before getting this care. There is $500 penalty applied if the member does not get prior authorization",
+        INN - No Charge
+        The annual deductible does not apply.
+        The provider will get prior authorization if needed.
+        OON - 40% coinsurance after $1000 deductible (not to exceed $2000 for all covered persons)
+        Any amount paid towards the deductible will apply to both INN and OON deductible.
+        No prior authorization needed for INN or OON.",
         "additional_information_to_retrieve": "",
         "context_used": "['overview of deductibles', '3d mammography overview']",
         "confidence_score": 100,
@@ -861,16 +847,9 @@ simple_react_chain_prompt: |
         {{
           "plan_and_summaries": "To provide a response for INN Network and OON Network coverage details and prior authorization details, limitations and exceptions for genetic testing, I need to look at b360 documents (b360_context). These details are specified in the document '0905531-001ACIS-Choice_Plus_with_Copay-hospital_services.txt'.", 
           "answer": "Genetic testing is covered but requires genetic counseling to be completed prior to the testing.
-                    **INN:**
-                      20% co-insurance After member pays the deductible. 
-                      Member does not need to get prior authorization before getting this care. The provider will get prior authorization if needed.
-                    *OON:*
-                      X-Ray and Other Diagnostic Testing: 40% co-insurance After member pays the deductible. 
-                      Member must get prior authorization for genetic testing and sleep studies. 
-                      Member needs to call 5 business days before scheduled services $500 penalty if member don't get prior authorization
-                    **Limits & Exceptions:**
-                      If the service is provided in a doctor's office, additional copays, deductible or co-insurance may apply. 
-                      Drug tests are limited each year to: 18 presumptive 18 definitive",
+                    INN: 20% co-insurance After you pay the deductible. You do not need to get prior authorization before getting this care. Your doctor will get prior authorization if needed.
+                    OON: X-Ray and Other Diagnostic Testing: 40% co-insurance After you pay the deductible. You must get prior authorization for genetic testing and sleep studies. When do I need to call? 5 business days before scheduled services $500 penalty if you don't get prior authorization
+                    Limits & Exceptions: If the service is provided in a doctor's office, additional copays, deductible or co-insurance may apply. Drug tests are limited each year to: 18 presumptive 18 definitive",
           "additional_information_to_retrieve": "",
           "context_used": "['physician benefits']",
           "confidence_score": 100,
@@ -947,16 +926,13 @@ simple_react_chain_prompt: |
       <Output>
         {{"plan_and_summaries":'The question is asking for the in-network deductible for an individual. I will check the b360 document for information on deductibles and then the kc document for the specific plan details including deductible and coinsurance amounts.
         INN\nYour cost if you use Network benefits\nIndividual Deductible\n **$1600**\n Family Deductible\n **$3200** \\*\n \\* For family coverage, no one in your family is allowed to receive benefits until the family annual deductible is met.\nType: OON\nYour cost if you use Out-of-Network benefits\nIndividual Deductible\n **$3200**\n Family Deductible\n **$6400** \\*\n \\* For family coverage, no one in your family is allowed to receive benefits until the family annual deductible is met.\n',
-        "answer": "The in-network deductible for an individual is $1600. 
-          The family deductible is $3200. 
-          For family coverage, no one in your family is allowed to receive benefits until the family annual deductible is met.",
+        "answer": "The in-network deductible for an individual is $1600. The family deductible is $3200. For family coverage, no one in your family is allowed to receive benefits until the family annual deductible is met.",
         "additional_information_to_retrieve": "",
         "context_used": "['deductibles']",
         "confidence_score": 100,
         "answer_confidence_reasoning": "The answer includes INN (in-network) deductibles information, including family deductible. Additionally the answer includes, the caveats provided in the relevant context after the "*" i.e. For family coverage, no one in your family is allowed to receive benefits until the family annual deductible is met. And it is based on the factual information. Therefore the confidence in this response is 100."}}
       </Output>
     </Example4>
-
   </Examples>
 
   Now it's your turn!
