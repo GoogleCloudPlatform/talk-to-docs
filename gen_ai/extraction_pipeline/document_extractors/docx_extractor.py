@@ -476,10 +476,8 @@ class DefaultDocxChunker:
         sections_names = []
         for paragraph in self.document.paragraphs:
             if style.lower() in paragraph.style.name.lower():
-                found_results = re.findall(r"\d+", paragraph.style.name)
-                if found_results:
-                    level = int(found_results[0])
-                    sections_names.append((level, paragraph.text))
+                level = int(re.findall(r"\d+", paragraph.style.name)[0])
+                sections_names.append((level, paragraph.text))
         return sections_names
 
     def get_next_section_index(
@@ -531,8 +529,7 @@ class DefaultDocxChunker:
         for line in splitted_text:
             if line.strip() == sections[i][1].strip():
                 if current_level == self.chunk_level:
-                    if current_text.strip() != "" and current_section == "Introduction":
-                        output_file[(section_id, current_section)] = current_text
+                    output_file[(section_id, current_section)] = current_text
                     section_id += 1
                 current_level, current_section = sections[i]
                 current_text = ""

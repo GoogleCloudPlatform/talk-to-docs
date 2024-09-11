@@ -5,7 +5,7 @@ pdf_extraction: default
 pdf_chunking: default
 html_extraction: custom
 
-raw_files_path: "/home/raw_files"
+raw_files_path: raw_files
 
 docai_project_id: null
 docai_dococr_processor_id: 5d106d45b46ec280
