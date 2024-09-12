@@ -352,7 +352,7 @@ class CustomJsonChunkerOne(DefaultJsonChunker):
 
         # Check content type for "article". Need to decide if necessary
         output_data = {("", ""): ""}
-        mime_type = self.data["metadata"]["content"].get("mimetype")
+        mime_type = self.data["metadata"]["content"].get("mimeType") or self.data["metadata"]["content"].get("mimetype")
         if not mime_type:
             raise TypeError("Wrong type of KC json data")
         if "text/html" in mime_type:
