@@ -12,10 +12,12 @@ Terraform modules to stage and deploy the application components. The `bootstrap
     - [Execute the bootstrap script](#execute-the-bootstrap-script)
 - [Automate Deployments with Cloud Build](#automate-deployments-with-cloud-build)
     - [Configure `gen_ai/llm.yaml`](#1-configure-gen_aillmyaml)
-    - [Configure optional input variable values in `terraform/main/vars.auto.tfvars`](#2-optional-configure-optional-input-variable-values-in-terraformmainvarsautotfvars)
-    - [Set environment variables](#3-set-environment-variables)
-    - [Create a `.env_gradio` file](#4-create-a-env_gradio-file)
+    - [OPTIONAL - Configure input variable values in `terraform/main/vars.auto.tfvars`](#2-optional-configure-input-variable-values-in-terraformmainvarsautotfvars)
+    - [To connect your Cloud Run services to an existing load balancer](#to-connect-your-cloud-run-services-to-an-existing-load-balancer)
+    - [Create a `.env_gradio` file](#3-create-a-env_gradio-file)
+    - [Set environment variables](#4-set-environment-variables)
     - [Build & push the docker images and apply the Terraform configuration](#5-build--push-the-docker-images-and-apply-the-terraform-configuration)
+    - [APPLICATION UPDATES](#application-updates)
 - [Add an A record to the DNS Managed Zone](#add-an-a-record-to-the-dns-managed-zone)
 - [Test the endpoint](#test-the-endpoint)
 - [Stage document extractions](#stage-document-extractions)
@@ -36,6 +38,7 @@ Terraform modules to stage and deploy the application components. The `bootstrap
     - [Purge documents](#2a-optional-purge-documents)
     - [Import documents](#2b-import-documents)
     - [Verify the operation](#3-verify-the-operation)
+- [Test the API `respond` method](#test-the-api-respond-method)
 - [Security](#security)
     - [Least Privilege Service Account roles](#least-privilege-service-account-roles)
     - [Service Account Impersonation](#service-account-impersonation)
@@ -229,16 +232,32 @@ source ./terraform/scripts/bootstrap.sh # change the path if necessary
 Use the [`gcloud CLI`](https://cloud.google.com/build/docs/running-builds/submit-build-via-cli-api) with [build config files](https://cloud.google.com/build/docs/configuring-builds/create-basic-configuration) to plan and deploy project resources.
 
 ## 1. Configure `gen_ai/llm.yaml`.
-- `bq_project_id` - leave as `null` to ensure all API clients use Application Default Credentials with resources in the same project.
+Verify/Change parameters as needed:
+- `bq_project_id` - leave as `null`: ensures all API clients use Application Default Credentials with resources in the same project.
 - `dataset_name` - the BigQuery dataset that will store T2X logs.
+- `terraform_instance_name` - the name of the Compute Engine instance Terraform creates. Change as needed to avoid name collisions.
+- `terraform_redis_name` the name of the Memorystore Redis instance Terraform creates. Change as needed to avoid name collisions.
 - `memory_store_ip` - leave as `redis.t2xservice.internal` when using private DNS configured with Terraform (optionally set to a manually-provisioned Redis instance IP address during local development).
 - `customer_name` - the company name used in the Agent Builder Search Engine.
+- `processed_files_dir` - [FOR LOCAL DEVELOPMENT ONLY] replace {dataset_name} with the `dataset_name` value from above.
 - `vais_data_store` - the Agent Builder Data Store ID (only use `null` during local development to cause the talk-to-docs application to create a new data store at startup).
 - `vais_engine_id` - the Agent Builder Search Engine ID (only use `null` during local development to cause the talk-to-docs application to create a new search engine at startup).
 - `vais_location` - the location for discoveryengine API (Agent Builder) resources, one of us, eu, or global
+- `api_mode` - one of `stateless` or `stateful`: `stateful` mode uses the Redis cache for multi-turn conversations.
+- `personalization` - leave set to `true` to enable query personalization.
 
-## 2. [OPTIONAL] Configure a domain name [input variable](https://developer.hashicorp.com/terraform/language/values/variables#assigning-values-to-root-module-variablesvalues) value in `terraform/main/vars.auto.tfvars`.
-- `global_lb_domain` - the domain name you want to use for the Cloud Load Balancer front end. You need control of the DNS zone to [edit the A record](#add-an-a-record-to-the-dns-managed-zone). If left unset, Terraform will default to using [nip.io](https://nip.io) with the load balancer IP address.
+## 2. [OPTIONAL] Configure [input variable](https://developer.hashicorp.com/terraform/language/values/variables#assigning-values-to-root-module-variablesvalues) values in `terraform/main/vars.auto.tfvars`.
+- `global_lb_domain` - the domain name you want to use for the Cloud Load Balancer front end.
+  - You need control of the DNS zone to [edit the A record](#add-an-a-record-to-the-dns-managed-zone).
+  - Setting this value also configures Cloud Run to use the domain in a [custom audience](https://cloud.google.com/run/docs/configuring/custom-audiences) for authentication.
+  - If left unset, Terraform will default to using [nip.io](https://nip.io) with the load balancer IP address and Cloud Run will not use a custom audience.
+- `create_loadbalancer` - boolean, without input defaults to `true`: set to `false` to skip creating the Cloud Load Balancer.
+
+### TO CONNECT YOUR CLOUD RUN SERVICES TO AN EXISTING LOAD BALANCER
+- Set `create_loadbalancer = false` **AND** set `global_lb_domain` to the value of the existing load balancer domain.
+- Ensure the Terraform `cloud-run` module resource `google_compute_backend_service.t2x` argument [`load_balancing_scheme`](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/compute_backend_service#load_balancing_scheme) matches the existing [load balancer type](https://cloud.google.com/load-balancing/docs/backend-service).
+- Cloud Run services will use the load balancer domain in the custom audience for authentication.
+- You must connect the backend services to the existing load balancer outside of this Terraform configuration.
 
 ## 3. Create a `.env_gradio` file.
 - Set the gradio app username and password using a local file that [python-dotenv](https://pypi.org/project/python-dotenv/) will read when the app launches.
@@ -267,7 +286,7 @@ source ./terraform/scripts/set_variables.sh # change the path if necessary
 - [OPTIONAL] Omit the `_RUN_TYPE=apply` substitution to run a plan-only build and review the Terraform changes before applying.
 ```sh
 cd $REPO_ROOT
-gcloud builds submit . --config=cloudbuild.yaml --project=$PROJECT --region=$REGION --substitutions="_RUN_TYPE=apply" --impersonate-service-account=terraform-service-account@${PROJECT}.iam.gserviceaccount.com
+gcloud builds submit . --config=cloudbuild.yaml --project=$PROJECT --region=$REGION --substitutions="_RUN_TYPE=apply" --impersonate-service-account=$TF_VAR_terraform_service_account
 ```
 
 - Review the build logs in the [Cloud Build History](https://cloud.google.com/build/docs/view-build-results) to verify the build and deployment status.
@@ -517,7 +536,7 @@ source ./terraform/scripts/set_variables.sh
 
 - Initialize the Terraform `main` module configuration with the remote state by passing required arguments to the partial backend.
 ```sh
-tf init -backend-config="bucket=terraform-state-${PROJECT}" -backend-config="impersonate_service_account=terraform-service-account@${PROJECT}.iam.gserviceaccount.com"
+tf init -backend-config="bucket=$BUCKET" -backend-config="impersonate_service_account=$TF_VAR_terraform_service_account"
 ```
 
 - Set the Terraform input environment variables to the target image names.
@@ -548,7 +567,7 @@ source ./terraform/scripts/set_variables.sh # change the path if necessary
     - You might need to [reconfigure the backend](#reconfiguring-a-backend) if you've already initialized the module.
 ```sh
 cd $REPO_ROOT/terraform/main # or cd $REPO_ROOT/terraform/bootstrap
-tf init -backend-config="bucket=terraform-state-${PROJECT}" -backend-config="impersonate_service_account=terraform-service-account@${PROJECT}.iam.gserviceaccount.com"
+tf init -backend-config="bucket=$BUCKET" -backend-config="impersonate_service_account=$TF_VAR_terraform_service_account"
 ```
 
 3. Apply the Terraform configuration to provision the cloud resources.
@@ -564,8 +583,8 @@ tf apply
 ## 1. Create metadata
 - Call the `create-metadata` endpoint on the `t2x-api` service to create a `metadata.jsonl` file in the staging bucket.
 - `AUDIENCE` is the Cloud Run Custom Audience configured by the Terraform `main` module.
-- `SERVICE_ACCOUNT` is any service account with the `roles/run.invoker` IAM role on the `t2x-api` Cloud Run service.
-- The caller must have the `roles/iam.serviceAccountTokenCreator` role on `SERVICE_ACCOUNT`.
+- `RUN_INVOKER_SERVICE_ACCOUNT` is any service account with the `roles/run.invoker` IAM role on the `t2x-api` Cloud Run service.
+- The caller must have the `roles/iam.serviceAccountTokenCreator` role on `RUN_INVOKER_SERVICE_ACCOUNT`.
 - Edit the `data.json` file with the required values for the target project/environment.
     - `branch` - the Agent Builder Data Store branch name. Leave as `default_branch`.
     - `bucket_name` - the staging bucket name. i.e., `t2x-staging-my-project-id`.
@@ -629,6 +648,20 @@ export LRO_NAME='projects/{project_number}/locations/{location}/collections/{col
 ```sh
 export LOCATION='us'
 curl -X GET -H "Authorization: Bearer ${TOKEN}" "${AUDIENCE}/get-operation?location=${LOCATION}&operation_name=${LRO_NAME}"
+```
+
+
+&nbsp;
+# Test the API `respond` method
+([return to top](#talk-to-docs-application-deployment-with-terraform))
+Using the `AUDIENCE` set previously, refresh the TOKEN and send request to LLM end Point:
+
+```shell
+export TOKEN=$(gcloud auth print-identity-token --impersonate-service-account=$RUN_INVOKER_SERVICE_ACCOUNT --audiences=$AUDIENCE)
+```
+
+```shell
+curl -X POST -H "Authorization: Bearer ${TOKEN}" -H "Content-Type: application/json" -d '{"question": "I injured my back. Is massage therapy covered?", "member_context_full": {"set_number": "001acis", "member_id": "1234"}}' ${AUDIENCE}/respond/
 ```
 
 

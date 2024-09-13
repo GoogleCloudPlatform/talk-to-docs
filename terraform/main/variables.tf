@@ -45,6 +45,12 @@ variable "nat_gateway_name" {
   description = "The NAT gateway name."
 }
 
+variable "create_loadbalancer" {
+  type        = bool
+  description = "Option to create a global load balancer."
+  default     = true
+}
+
 variable "global_lb_domain" {
   description = "The global load balancer domain name."
   type        = string

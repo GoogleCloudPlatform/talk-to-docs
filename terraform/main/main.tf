@@ -10,7 +10,7 @@ data "terraform_remote_state" "main" {
 
 locals {
   config           = yamldecode(file("../../gen_ai/llm.yaml"))
-  global_lb_domain = coalesce(var.global_lb_domain, try(module.loadbalancer.global_lb_domain, null))
+  global_lb_domain = coalesce(var.global_lb_domain, try(module.loadbalancer[0].global_lb_domain, null))
   docker_image_api = coalesce(var.docker_image_api, try(data.terraform_remote_state.main.outputs.docker_image_api, null))
   docker_image_ui  = coalesce(var.docker_image_ui, try(data.terraform_remote_state.main.outputs.docker_image_ui, null))
 }
@@ -26,6 +26,7 @@ module "vpc" {
 
 module "loadbalancer" {
   source           = "../modules/loadbalancer"
+  count            = var.create_loadbalancer ? 1 : 0
   project_id       = var.project_id
   global_lb_domain = var.global_lb_domain
   default_service  = module.cloud_run_ui.cloudrun_backend_service_id
