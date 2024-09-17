@@ -27,7 +27,6 @@ Terraform modules to stage and deploy the application components. The `bootstrap
     - [Trigger the workflow](#1-trigger-the-workflow)
     - [Check the progress](#2-check-the-progress)
 - [Configure Identity-Aware Proxy](#configure-identity-aware-proxy)
-
 ### REFERENCE INFO
 - [Rollbacks](#rollbacks)
     - [Option 1: Use the Cloud Console to switch Cloud Run service traffic to a different revision](#option-1-use-the-cloud-console-to-switch-cloud-run-service-traffic-to-a-different-revision)
@@ -38,7 +37,7 @@ Terraform modules to stage and deploy the application components. The `bootstrap
     - [Purge documents](#2a-optional-purge-documents)
     - [Import documents](#2b-import-documents)
     - [Verify the operation](#3-verify-the-operation)
-- [Test the API `respond` method](#test-the-api-respond-method)
+- [Test the respond endpoint](#test-the-respond-endpoint)
 - [Security](#security)
     - [Least Privilege Service Account roles](#least-privilege-service-account-roles)
     - [Service Account Impersonation](#service-account-impersonation)
@@ -108,9 +107,14 @@ terraform/ # this directory
 ([return to top](#talk-to-docs-application-deployment-with-terraform))
 
 - [Clone the repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) and open a terminal session in the local repo directory.
+
+```shell
+export REPO_ROOT=$(git rev-parse --show-toplevel)
+```
 - Your Google user account must be a **[Project Owner](https://cloud.google.com/iam/docs/understanding-roles#owner)** in the target project.
 - Make the helper scripts executable.
 ```sh
+cd $REPO_ROOT
 chmod +x terraform/scripts/bootstrap.sh # change the path if necessary
 chmod +x terraform/scripts/set_variables.sh # change the path if necessary
 chmod +x terraform/scripts/test_endpoint.sh # change the path if necessary
@@ -327,6 +331,12 @@ gcloud builds submit . --config=cloudbuild.yaml --project=$PROJECT --region=$REG
 ./terraform/scripts/test_endpoint.sh # change the path if necessary
 ```
 
+- The output log contains the end point AUDIENCE, e.g:
+
+```text
+AUDIENCE: https://35.244.215.210.nip.io/t2x-api
+```
+
 
 &nbsp;
 # Stage document extractions
@@ -497,6 +507,7 @@ workflowRevisionId: 000001-c99
 9. Navigate back to the "Load Balancing" dashboard, select your load balancer, and then the Certificate name. If this is not yet ACTIVE, we will need to wait until it reaches ACTIVE status. Take a break and refresh occasionally.  
 10. When the certificate is ACTIVE, navigate back to Identity-Aware Proxy by searching "IAP" at the top of the Console.  
 11. Toggle on IAP protection of our backend service. The backend service may show a status of Error before you enable IAP, but enabling it should complete its configuration. You will be prompted to review configuration requirements, and then select the checkbox confirming your understanding and select "Turn On."  
+>> Make sure to only enable IAP for `t2x-ui` and leave `t2x-api` without IAP enabled (since it is not being exposed).
 
 ![OAuth Consent Screen configuration](assets/enable_iap.png)
 
@@ -650,20 +661,41 @@ export LOCATION='us'
 curl -X GET -H "Authorization: Bearer ${TOKEN}" "${AUDIENCE}/get-operation?location=${LOCATION}&operation_name=${LRO_NAME}"
 ```
 
-
 &nbsp;
-# Test the API `respond` method
+# Test the respond endpoint
 ([return to top](#talk-to-docs-application-deployment-with-terraform))
-Using the `AUDIENCE` set previously, refresh the TOKEN and send request to LLM end Point:
+
+You can also call `respond` T2X service end point manually  using `curl` command.
+
+1. Obtain the `AUDIENCE`:
+- When using custom domain:
 
 ```shell
-export TOKEN=$(gcloud auth print-identity-token --impersonate-service-account=$RUN_INVOKER_SERVICE_ACCOUNT --audiences=$AUDIENCE)
+export AUDIENCE=load_balancer_domain/t2x-api
 ```
 
+- If you used the default domain using the `nip.io`, you can obtain the  IP address for the AUDIENCE either:
+    - By running `test_endpoint.sh` script and copying AUDIENCE from the log output:
+
 ```shell
+./terraform/scripts/test_endpoint.sh
+```
+
+- Or via the Cloud Console by navigating to the [Load Balancing](https://console.cloud.google.com/net-services/loadbalancing/list/loadBalancers),
+    - Selecting [t2x-lb-url-map](https://console.cloud.google.com/net-services/loadbalancing/details/httpAdvanced/t2x-lb-url-map)
+    - Checking the **Routing rules** - it will be in the format `xx.xx.xx.xx.nip.io` (will need to add `/t2x-api` at the end as in the example).
+
+
+2. Set the `AUDIENCE`:
+```shell
+export AUDIENCE=.. # e.g. https://35.244.215.210.nip.io/t2x-api
+```
+
+3. Send curl POST request:
+```shell
+export TOKEN=$(gcloud auth print-identity-token --impersonate-service-account=$TF_VAR_terraform_service_account --audiences=$AUDIENCE)
 curl -X POST -H "Authorization: Bearer ${TOKEN}" -H "Content-Type: application/json" -d '{"question": "I injured my back. Is massage therapy covered?", "member_context_full": {"set_number": "001acis", "member_id": "1234"}}' ${AUDIENCE}/respond/
 ```
-
 
 &nbsp;
 # Security
