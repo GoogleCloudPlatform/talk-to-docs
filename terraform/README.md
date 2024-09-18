@@ -126,6 +126,7 @@ chmod +x terraform/scripts/trigger_workflow.sh # change the path if necessary
 alias tf='terraform'
 ```
 
+- Set the default project. Wait up to a few minutes and try again if you encounter an error shortly after enabling the Service Usage API.
 ### OPTION 1: Deploying from [Google Cloud Shell](https://cloud.google.com/shell/docs/using-cloud-shell):
 
 - Your user account (`core.account`) and default project (`core.project`) should already be set up in the Cloud Shell environment.
@@ -133,20 +134,15 @@ alias tf='terraform'
 ```sh
 gcloud config list --format=yaml
 ```
-Example output:
-```yaml
-accessibility:
-  screen_reader: 'True'
-component_manager:
-  disable_update_check: 'True'
-compute:
-  gce_metadata_read_timeout_sec: '30'
-core:
-  account: project-owner@example.com
-  disable_usage_reporting: 'False'
-  project: my-project-id
-metrics:
-  environment: devshell
+
+- Enable the Service Usage, IAM, and Service Account Credentials APIs.
+```sh
+gcloud services enable serviceusage.googleapis.com iam.googleapis.com iamcredentials.googleapis.com
+```
+
+- Create [Application Default Credentials](https://cloud.google.com/docs/authentication/provide-credentials-adc)
+```sh
+gcloud auth application-default login
 ```
 
 - [OPTIONAL] Set the default compute region (`compute.region`). The helper script will default to 'us-central1' if your `gcloud` configuration does not specify a region.
@@ -236,16 +232,17 @@ source ./terraform/scripts/bootstrap.sh # change the path if necessary
 Use the [`gcloud CLI`](https://cloud.google.com/build/docs/running-builds/submit-build-via-cli-api) with [build config files](https://cloud.google.com/build/docs/configuring-builds/create-basic-configuration) to plan and deploy project resources.
 
 ## 1. Configure `gen_ai/llm.yaml`.
-Verify/Change parameters as needed:
-- `bq_project_id` - leave as `null`: ensures all API clients use Application Default Credentials with resources in the same project.
+Verify/Change parameters if needed:
+- `bq_project_id` - leave as `null` to ensure all API clients use Application Default Credentials with resources in the same project.
+- `memory_store_ip` - the Memorystore Redis host - should always be `redis.t2xservice.internal` to use the private DNS zone created by Terraform.
 - `dataset_name` - the BigQuery dataset that will store T2X logs.
 - `terraform_instance_name` - the name of the Compute Engine instance Terraform creates. Change as needed to avoid name collisions.
 - `terraform_redis_name` the name of the Memorystore Redis instance Terraform creates. Change as needed to avoid name collisions.
 - `memory_store_ip` - leave as `redis.t2xservice.internal` when using private DNS configured with Terraform (optionally set to a manually-provisioned Redis instance IP address during local development).
 - `customer_name` - the company name used in the Agent Builder Search Engine.
 - `processed_files_dir` - [FOR LOCAL DEVELOPMENT ONLY] replace {dataset_name} with the `dataset_name` value from above.
-- `vais_data_store` - the Agent Builder Data Store ID (only use `null` during local development to cause the talk-to-docs application to create a new data store at startup).
-- `vais_engine_id` - the Agent Builder Search Engine ID (only use `null` during local development to cause the talk-to-docs application to create a new search engine at startup).
+- `vais_data_store` - the Agent Builder Data Store ID, e.g. `data-store-uhg-docs` (only use `null` during local development to cause the talk-to-docs application to create a new data store at startup).
+- `vais_engine_id` - the Agent Builder Search Engine ID, e.g. `search-engine-uhg-docs` (only use `null` during local development to cause the talk-to-docs application to create a new search engine at startup).
 - `vais_location` - the location for discoveryengine API (Agent Builder) resources, one of us, eu, or global
 - `api_mode` - one of `stateless` or `stateful`: `stateful` mode uses the Redis cache for multi-turn conversations.
 - `personalization` - leave set to `true` to enable query personalization.
@@ -321,6 +318,22 @@ gcloud builds submit . --config=cloudbuild.yaml --project=$PROJECT --region=$REG
 # Test the endpoint
 ([return to top](#talk-to-docs-application-deployment-with-terraform))
 
+- Verify the TLS certificate is active and the endpoint is reachable using `curl`.
+- *It may take some more time after the certificate reaches ACTIVE Managed status before the endpoint responds with success. It may throw an SSLError due to mismatched client and server protocols until changes propagate.*
+- [Authenticate](https://cloud.google.com/run/docs/authenticating/service-to-service) using a service account and the [Cloud Run custom audience](https://cloud.google.com/run/docs/configuring/custom-audiences) to generate an ID token.
+- The service account must have the `roles/run.invoker` role on the Cloud Run service.
+  - E.g., create new service account `run-invoker-service-account` and assign `Cloud Run Invoker` role to it.
+- [When not using DNS Managed Zone] Find out the assigned IP for the T2X service, created by terraform:
+  - Navigate to the [Load Balancing](https://console.cloud.google.com/net-services/loadbalancing/list/loadBalancers) and select [t2x-lb-url-map](https://console.cloud.google.com/net-services/loadbalancing/details/httpAdvanced/t2x-lb-url-map)
+  - Check the **Routing rules**: it will be in the format `xx.xx.xx.xx.nip.io`. You will need it for the `AUDIENCE` below (will need to add `/t2x-api` at the end as in the example).
+- The server responds with a 200 status code and `{"status":"ok"}` if the endpoint is reachable and the TLS certificate is active.
+- [OPTIONAL] Consider skipping to the [Stage document extractions](#stage-document-extractions) step first then return here to test the endpoint while waiting for DNS propagation.
+
+```sh
+export AUDIENCE='https://34.54.24.62.nip.io/t2x-api' # replace with the Cloud Run Custom Audience (uses load balancer domain or nip.io domain plus the Cloud Run service name as the '/path') - will be displayed in Terraform main module outputs as 'custom_audience'.
+export RUN_INVOKER_SERVICE_ACCOUNT="run-invoker-service-account@${PROJECT}.iam.gserviceaccount.com" # replace with the run invoker service account email address
+export TOKEN=$(gcloud auth print-identity-token --impersonate-service-account=$RUN_INVOKER_SERVICE_ACCOUNT --audiences=$AUDIENCE)
+curl -X GET -H "Authorization: Bearer ${TOKEN}" "${AUDIENCE}/health"
 - Verify the TLS certificate is active and the endpoint is reachable using the `test_endpoint.sh` helper script.
     - The script [authenticates](https://cloud.google.com/run/docs/authenticating/service-to-service) using a service account and the [Cloud Run custom audience](https://cloud.google.com/run/docs/configuring/custom-audiences) to [generate an ID token](https://cloud.google.com/docs/authentication/get-id-token#impersonation)
 - The server responds with a 200 status code and `{"status":"ok"}` if the endpoint is reachable and the TLS certificate is active.
@@ -405,8 +418,9 @@ gcloud storage cp -r "gs://$SOURCE_BUCKET/$DATASET_NAME/*" "gs://$STAGING_BUCKET
 - It requires a single input parameter, `dataset_name`, which is the folder name in the staging bucket containing the document extractions.
     - i.e. `gs://t2x-staging-my-project-id/source-data/extractions20240715` -> `"dataset_name": "extractions20240715"`.
     - The `dataset_name` corresponds to the `$DATASET_NAME` value set in the [Stage document extractions](#7-stage-document-extractions) step.
+    - Extractions must be located inside the folder:  `gs://t2x-staging-${PROJECT_ID}/source-data`
 - The workflow creates a metadata file in the staging bucket and imports the document extractions to the Discovery Engine Data Store.
-- The metadata file gests created in the `data-store-metadata` top-level folder in a subfolder sharing the name of the extractions dataset.
+- The metadata file gets created in the `data-store-metadata` top-level folder in a subfolder sharing the name of the extractions dataset.
 - In this example, the dataset name is `extractions20240715` and the metadata file is `metadata.jsonl`, already created in the staging bucket.
 ![Staging bucket structure](assets/extractions_metadata_jsonl.png)
 
@@ -415,6 +429,10 @@ gcloud storage cp -r "gs://$SOURCE_BUCKET/$DATASET_NAME/*" "gs://$STAGING_BUCKET
 - **Pass the required [runtime argument](https://cloud.google.com/workflows/docs/passing-runtime-arguments) `dataset_name` to the workflow.**
 - `trigger_workflow.sh` CLI example:
 ```sh
+export PROJECT='my-project-id' # replace with your project ID
+export REGION='us-central1'
+export DATASET_NAME='{source_extractions_folder_path}' # replace with the source extractions folder path
+# i.e. with the full source path URI as 'gs://t2x-staging-${PROJECT_ID}/source-data/extractions20240715' -> 'extractions20240715'
 ./terraform/scripts/trigger_workflow.sh # change the path if necessary
 ```
 example output:
@@ -478,6 +496,18 @@ workflowRevisionId: 000001-c99
 
 
 &nbsp;
+# Test the End Point
+Using the `AUDIENCE` set previously, refresh the TOKEN and send request to LLM end Point:
+
+```shell
+export TOKEN=$(gcloud auth print-identity-token --impersonate-service-account=$RUN_INVOKER_SERVICE_ACCOUNT --audiences=$AUDIENCE)
+```
+
+```shell
+curl -X POST -H "Authorization: Bearer ${TOKEN}" -H "Content-Type: application/json" -d '{"question": "I injured my back. Is massage therapy covered?", "member_context_full": {"set_number": "001acis", "member_id": "1234"}}' ${AUDIENCE}/respond/
+```
+
+&nbsp;
 # Configure Identity-Aware Proxy
 ([return to top](#talk-to-docs-application-deployment-with-terraform))
 - Configuring IAP for an 'External' app is only possible from the Google Cloud Console.
@@ -511,6 +541,11 @@ workflowRevisionId: 000001-c99
 
 ![OAuth Consent Screen configuration](assets/enable_iap.png)
 
+
+12. Add a Google Identity (i.e a user or group) with the "IAP-secured Web App User" role.  
+13. You may see an "Error: Forbidden" message for about the first 5 minutes, but after that users with the "IAP-secured Web App User" role on the Project or IAP backend service should be able to access the app via the domain on the Load Balancer certificate plus the service path.
+    - i.e. `https://app.example.com/t2x-ui/` or `https://35.244.148.105.nip.io/t2x-ui/`
+    - The load balancer path requires a trailing slash `/`.
 12. Add a Google Identity (i.e a user or group) with the "IAP-secured Web App User" role.
     - See the [Known Issues](#errors-adding-users-to-identity-aware-proxy) section for information about "Policy updated failed" errors due to the [Domain restricted sharing Org policy](https://cloud.google.com/resource-manager/docs/organization-policy/restricting-domains#example_error_message).
 13. You may see an "Error: Forbidden" message for about the first 5 minutes, but after that users with the "IAP-secured Web App User" role on the Project or IAP backend service should be able to access the app via the domain on the Load Balancer certificate.

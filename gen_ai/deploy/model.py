@@ -168,7 +168,7 @@ class LLMOutput(BaseModel):
     response_id: str
     plan_and_summaries: str
     additional_information_to_retrieve: str
-    context_used: str
+    context_used: list
     urls_to_kc: list[str]
     attributes_to_kc_km: list[dict]
     attributes_to_kc_mp: list[dict]
@@ -205,7 +205,7 @@ class QueryState:
     gt_answer: str | None = field(default=None)
     answer: str | None = field(default=None)
     tokens_used: int | None = field(default=None)
-    relevant_context: str | None = field(default=None)
+    relevant_context: list | None = field(default_factory=list)
     urls: list[str] = field(default_factory=list)
     react_rounds: list[dict[str, Any]] = field(default_factory=list)
     input_tokens: list[int] = field(default_factory=list)

@@ -63,6 +63,7 @@ def predict(conversation: Conversation, input_query, input_metadata, request: gr
         input_metadata = {"set_number": input_metadata.lower(), "member_id": "m123"}
     else:
         input_metadata = None
+    print(f"input_metadata = {input_metadata}")
     llm.respond(conversation, input_metadata)
 
     end_time = datetime.now()
@@ -272,7 +273,8 @@ if __name__ == "__main__":
 
         # Chatbot interface display
         gr.HTML("<div><h3>Chat History</h3></div>")
-        chatbot = gr.Chatbot(elem_id="chatbot", label="Chat History", container=False, show_label=True)
+        chatbot = gr.Chatbot(elem_id="chatbot", label="Chat History", container=False, show_label=True).\
+            style(selectable=True)
         # Row of input for text box and the primary process button
         with gr.Row(variant="panel", equal_height=True):
             with gr.Column(scale=2):
@@ -285,7 +287,7 @@ if __name__ == "__main__":
 
                 with gr.Row():
                     metadata_box = gr.Textbox(
-                        label="Optional. Input personalization info",
+                        label="Input personalization info (set_number), e.g 001ACIS ",
                         lines=1,
                         placeholder="Input personalization info",
                     )
@@ -412,7 +414,7 @@ if __name__ == "__main__":
         # Examples for the chatbot
         gr.Examples(
             [
-                ["What are Verizon's top operating expenses?"],
+                ["How does reimbursement work?"],
                 ["What industry does AMCOR primarily operate in?"],
                 ["Locate information on partnerships or collaborations announced by Paramount."],
                 ["What are the key trends impacting costs for davita?"],
@@ -434,7 +436,7 @@ if __name__ == "__main__":
             root_path=Container.config.get("gradio_root_path", None),
             server_name=server_name,
             server_port=int(os.environ.get("PORT", 7860)),
-            auth=authenticate,
+            # auth=authenticate,
             ssl_verify=False,
             share=False,
         )

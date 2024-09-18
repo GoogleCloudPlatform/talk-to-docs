@@ -23,7 +23,7 @@ from gen_ai.deploy.model import QueryState
 
 
 def generate_contexts_from_docs(docs_and_scores: list[Document], query_state: QueryState | None = None) -> list[str]:
-    return default_generate_contexts_from_docs(docs_and_scores, query_state)
+    return custom_generate_contexts_from_docs(docs_and_scores, query_state)
 
 
 def build_doc_title(metadata: dict[str, str]) -> str:
@@ -51,7 +51,7 @@ def extract_doc_attributes(docs_and_scores: list[Document]) -> list[tuple[str]]:
     Returns:
         A list of tuples where each tuple contains attributes from a Document.
     """
-    return default_extract_doc_attributes(docs_and_scores)
+    return custom_extract_doc_attributes(docs_and_scores)
 
 
 def fill_query_state_with_doc_attributes(query_state: QueryState, post_filtered_docs: list[Document]) -> QueryState:
@@ -65,7 +65,7 @@ def fill_query_state_with_doc_attributes(query_state: QueryState, post_filtered_
     Returns:
         The modified QueryState object, with custom_fields updated based on document metadata.
     """
-    return default_fill_query_state_with_doc_attributes(query_state, post_filtered_docs)
+    return custom_fill_query_state_with_doc_attributes(query_state, post_filtered_docs)
 
 
 def default_fill_query_state_with_doc_attributes(
@@ -328,10 +328,12 @@ def custom_generate_contexts_from_docs(
     b360_context = default_generate_contexts_from_docs(b360_docs, query_state)[0]
 
     custom_context = f"""
+    This is the start of b360 Documents:
     <b360_context>
         {b360_context}
     </b360_context>
-    This marks the start of text from kc documents. Remember that these are generic documents that will be overridden by a b360 documents, in case of a conflict re: coverage of a service.
+    This marks the start of text from kc Documents. Remember that the content of <b360_context> above overrides the <kc_context> below in case of a contradictory answers from both <b360_context> and <kc_context>.
+    This is the start of kc Documents:
     <kc_context>
         {kc_context}
     </kc_context>

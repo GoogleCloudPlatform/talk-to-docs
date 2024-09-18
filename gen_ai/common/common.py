@@ -5,6 +5,7 @@ counting, data loading, JSON handling, and interaction with language models.
 
 import json
 import re
+import os
 import warnings
 from typing import List, Tuple
 
@@ -19,7 +20,7 @@ from gen_ai.deploy.model import QueryState
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-LLM_YAML_FILE = "gen_ai/llm.yaml"
+LLM_YAML_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "llm.yaml")
 
 
 class TokenCounter:
@@ -120,7 +121,7 @@ def get_or_create_model(model_name: str) -> BaseChatModel:
     temperature = config.get("temperature", 0.001)
     max_output_tokens = config.get("max_output_tokens", 4000)
     if "gemini" in model_name or "unicorn" in model_name:
-        llms[model_name] = VertexAI(model_name=model_name, temperature=temperature, max_output_tokens=max_output_tokens)
+        llms[model_name] = VertexAI(model_name=model_name, temperature=temperature, max_output_tokens=max_output_tokens, seed=42)
         return llms[model_name]
     elif "chat-bison" in model_name or "text-bison" in model_name:
         llms[model_name] = ChatVertexAI(

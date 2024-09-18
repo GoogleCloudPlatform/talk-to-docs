@@ -28,6 +28,8 @@ Dependencies:
 import uuid
 from timeit import default_timer
 from typing import Any
+from ast import literal_eval
+import re
 
 import json5
 from dependency_injector.wiring import inject
@@ -143,7 +145,7 @@ def perform_main_llm_call(
             "additional_information_to_retrieve": "",
         },
         0,
-        False
+        False,
     )
     try:
         output_raw = output_raw.replace("`json", "").replace("`", "")
@@ -315,11 +317,15 @@ def generate_response_react(conversation: Conversation) -> tuple[Conversation, l
         if not query_state.additional_information_to_retrieve:
             break
 
-        if confidence >= 5:
+        if confidence >= 95:
             break
 
     conversation.round_numder = round_number
     query_state.answer = output["answer"]
+    if isinstance(output["context_used"], str):
+        query_state.relevant_context = literal_eval(output["context_used"])
+    if isinstance(output["context_used"], list):
+        query_state.relevant_context = output["context_used"]
     query_state.relevant_context = output["context_used"]
     query_state.all_sections_needed = [x[0] for x in query_state.used_articles_with_scores]
     query_state.used_articles_with_scores = None
@@ -328,7 +334,110 @@ def generate_response_react(conversation: Conversation) -> tuple[Conversation, l
     for x in log_snapshots:
         x["post_filtered_docs_so_far"] = post_filtered_docs
 
+    if check_for_plain_text(conversation.exchanges[-1].answer):
+        conversation.exchanges[-1].answer = live_format_answer(conversation.exchanges[-1].answer)
     return conversation, log_snapshots
+
+
+def live_format_answer(text: str) -> str:
+    sentence_endings = re.compile(r"(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s")
+    sentences = sentence_endings.split(text)
+
+    formatted_text = ""
+    for i in range(0, len(sentences), 3):
+        chunk = " ".join(sentences[i : i + 3]).strip()
+        formatted_text += chunk + "\n\n" if chunk else ""
+
+    return formatted_text.strip()
+
+
+def check_for_plain_text(text: str) -> bool:
+    markdown_patterns = [
+        r"\*\*.*?\*\*",  # Bold (e.g., **bold**)
+        r"\*.*?\*",  # Italics (e.g., *italic*)
+        r"__.*?__",  # Bold (e.g., __bold__)
+        r"_.*?_",  # Italics (e.g., _italic_)
+        r"\[.*?\]\(.*?\)",  # Links (e.g., [text](url))
+        r"\#",  # Headings (e.g., # heading)
+        r"`.*?`",  # Inline code (e.g., `code`)
+        r"```[\s\S]*?```",  # Code block (e.g., ``` code block ```)
+    ]
+
+    bullet_point_patterns = [
+        r"^\s*[-\*+]\s+",  # Bullet points (e.g., - item, * item, + item)
+        r"^\s*\d+\.\s+",  # Numbered lists (e.g., 1. item)
+    ]
+
+    table_pattern = r"\|\s*.+?\s*\|.*?\|?"  # Table (e.g., | col1 | col2 |)
+
+    tab_pattern = r"\t"
+
+    for pattern in markdown_patterns:
+        if re.search(pattern, text):
+            return False
+
+    for pattern in bullet_point_patterns:
+        if re.search(pattern, text, re.MULTILINE):
+            return False
+
+    if re.search(table_pattern, text):
+        return False
+
+    if re.search(tab_pattern, text):
+        return False
+
+    return True
+
+
+def enhance_question_with_context(member_context, question):
+    subject_relationship = member_context.get("relationship", "Self")
+    subject_age = member_context.get("age", "")
+    subject_gender = member_context.get("gender", "")
+    if subject_gender.upper() in ["F", "M"]:
+        gender_pronoun = "female" if subject_gender == "F" else "male" if subject_gender == "M" else ""
+    else:
+        gender_pronoun = subject_gender
+
+    if subject_relationship == "Self":
+        relationship_text = f"The member is a {subject_age} years old {gender_pronoun}. "
+    else:
+        relationship_text = f"The member is a subscriber, their {subject_relationship.lower()} is a {subject_age} years old {gender_pronoun}."
+
+    enhanced_question = f"I would like to know the answer to a question from the following member. {relationship_text} Here is the question: {question.strip()}"
+
+    return enhanced_question
+
+
+def is_legit_question(text):
+    if text.strip().endswith("?"):
+        return True
+
+    question_words = [
+        "who",
+        "what",
+        "when",
+        "where",
+        "why",
+        "how",
+        "is",
+        "are",
+        "does",
+        "do",
+        "can",
+        "could",
+        "should",
+        "would",
+        "will",
+    ]
+
+    first_word = text.strip().split()[0].lower() if text.strip() else ""
+    if first_word in question_words:
+        return True
+
+    if re.match(r"^\d+$", text.strip()) or not re.search(r"[a-zA-Z]", text):
+        return False
+
+    return False
 
 
 def respond(conversation: Conversation, member_info: dict) -> Conversation:
@@ -352,8 +461,14 @@ def respond(conversation: Conversation, member_info: dict) -> Conversation:
     conversation.member_info = member_info
     if conversation.member_info and "set_number" in conversation.member_info:
         conversation.member_info["set_number"] = conversation.member_info["set_number"].lower()
+        # replace "acis001" -> "001acis"
+        if "acis" == conversation.member_info["set_number"][0:4]:
+            conversation.member_info["set_number"] = (
+                conversation.member_info["set_number"][4:] + conversation.member_info["set_number"][0:4]
+            )
     if conversation.member_info and "session_id" in conversation.member_info:
-        conversation.session_id = conversation.member_info["session_id"]
+        session_id = f"{conversation.member_info['session_id']}---{str(uuid.uuid4())}"
+        conversation.session_id = session_id
     else:
         conversation.session_id = str(uuid.uuid4())
 
@@ -364,6 +479,17 @@ def respond(conversation: Conversation, member_info: dict) -> Conversation:
             Container.logger().error("Stateful API is enabled, but no member_id was provided")
             raise ValueError("Member id is not provided for Stateful API and Multi-Turn")
         conversation = resolve_and_enrich(conversation)
+
+    policy_number = member_info.get("policy_number") or "generic"
+    if policy_number not in Container.config.get("existing_policies", {}):
+        conversation.exchanges[-1].answer = "Incorrect policy number is provided."
+        return conversation
+
+    if policy_number != "generic" and member_info.get("set_number", "") not in Container.config[
+        "existing_policies"
+    ].get(policy_number, {}):
+        conversation.exchanges[-1].answer = "Incorrect set number is provided."
+        return conversation
 
     conversation, log_snapshots = generate_response_react(conversation)
 
@@ -395,6 +521,11 @@ def respond_api(question: str, member_context_full: PersonalizedData | dict[str,
     """
     if isinstance(member_context_full, PersonalizedData):
         member_context_full = transform_to_dictionary(member_context_full)
+
+    if is_legit_question(question):
+        question = enhance_question_with_context(member_context_full, question)
+    print("QUESTION:", question)
+
     query_state = QueryState(question=question, all_sections_needed=[])
     query_state.original_question = (
         Container.original_question
@@ -404,4 +535,3 @@ def respond_api(question: str, member_context_full: PersonalizedData | dict[str,
     conversation = Conversation(exchanges=[query_state])
     conversation = respond(conversation, member_context_full)
     return conversation
-
