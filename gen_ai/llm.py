@@ -401,9 +401,11 @@ def enhance_question_with_context(member_context, question):
     if subject_relationship == "Self":
         relationship_text = f"The member is a {subject_age} years old {gender_pronoun}. "
     else:
-        relationship_text = f"The member is a subscriber, their {subject_relationship.lower()} is a {subject_age} years old {gender_pronoun}."
+        relationship_text = (f"The member is a subscriber, their {subject_relationship.lower()} "
+                             f"is a {subject_age} years old {gender_pronoun}.")
 
-    enhanced_question = f"I would like to know the answer to a question from the following member. {relationship_text} Here is the question: {question.strip()}"
+    enhanced_question = (f"I would like to know the answer to a question from the following member. "
+                         f"{relationship_text} Here is the question: {question.strip()}")
 
     return enhanced_question
 

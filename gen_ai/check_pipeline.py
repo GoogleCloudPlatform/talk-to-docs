@@ -19,10 +19,10 @@ Exceptions:
 """
 import glob
 import os
-import uuid
 from timeit import default_timer
 from typing import Literal
 
+import json
 import click
 import pandas as pd
 
@@ -32,8 +32,8 @@ from gen_ai.check_recall import (
     prepare_semantic_score_calculation,
 )
 from gen_ai.common.eval_utils import enhance_question
-from gen_ai.llm import enhance_question_with_context
 from gen_ai.common.ioc_container import Container
+from gen_ai.llm import enhance_question_with_context
 from gen_ai.llm import respond_api
 
 
@@ -133,14 +133,14 @@ def get_fake_df():
         "Do I have other options to continue coverage after I've turned 26?",
         "Does my plan cover acupuncture for lower back pain?",
         "Is urgent care covered?",
-        "It has been a few months since my mastectomy was performed. Do I still qualify for supply coverage? Can I still get a bra now?",
+        "It has been a few months since my mastectomy was performed. "
+        "Do I still qualify for supply coverage? Can I still get a bra now?",
         "My doctor said the code she was billing is 77061; can you confirm that's covered?",
         "Does my plan cover acupuncture for lower back pain?",
         "what happens after I submit the form ?",
         "Will it also cover the associated anesthesia?",
     ]
     result = []
-    import json
 
     for x in ls:
         result.append(
@@ -149,7 +149,9 @@ def get_fake_df():
                 "001acis",
                 "931906",
                 json.loads(
-                    '{"age":"28","dob":"01/08/1996","full_name":"harry potter","gender":"male","member_id":"34343","policy_number":"931906","relationship":"self","set_id":"001acis","subject_cob":"commercial","subject_cob_status":"yes"}'
+                    '{"age":"28","dob":"01/08/1996","full_name":"harry potter","gender":"male","member_id":"34343",'
+                    '"policy_number":"931906","relationship":"self","set_id":"001acis","subject_cob":"commercial",'
+                    '"subject_cob_status":"yes"}'
                 ),
             )
         )
@@ -159,7 +161,7 @@ def get_fake_df():
 
 def run_pipeline(
     mode: Literal["batch", "step"] = "step",
-    csv_path: str | None = None,
+    csv_path: str | None = None,  # pylint: disable=W0613
     comments: str | None = None,
     is_gt: bool = False,
     n_calls: int = 1,
@@ -220,7 +222,7 @@ def run_pipeline(
                     personalized_data["member_id"] = member_id
                 Container.original_question = question
                 # question = prepend_question_with_member_info(row, question)
-                question = enhance_question_with_context(row['Context'], question)
+                question = enhance_question_with_context(row["Context"], question)
                 answer = run_single_prediction(question, personalized_data)
                 Container.logger().info(msg=f"Answer: {answer}")
 
@@ -234,8 +236,8 @@ def run_pipeline(
         elif mode == "step":
             start = default_timer()
             # question = (
-            #     "I would like to know the answer to a question from the following member. The member is a subscriber, "
-            #     "a 59 year old female without any OI (other insurance coverage). She was just diagnosed with ESRD "
+            #     "I would like to know the answer to a question from the following member. The member is a subscriber,"
+            #     " a 59 year old female without any OI (other insurance coverage). She was just diagnosed with ESRD "
             #     "and is now eligible for Medicare. Which is her primary plan?"
             # )
             question = "My child is no longer a student, how long can she remain on my plan?"
@@ -247,7 +249,8 @@ def run_pipeline(
                 Container.logger().info(msg=f"Question: {input_query}")
                 answer = run_single_prediction(
                     input_query,
-                    {"set_number": acis, "member_id": "q1e23", "session_id": session_id, "policy_number": "931906"},
+                    {"set_number": acis, "member_id": "q1e23", "session_id": session_id,
+                     "policy_number": "931906"},
                 )
                 Container.logger().info(msg=f"Answer: {answer}")
             end = default_timer()
