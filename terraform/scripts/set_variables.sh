@@ -28,11 +28,15 @@ export TF_VAR_terraform_service_account="terraform-service-account@${PROJECT}.ia
 # Set the REPO_ROOT environment variable.
 export REPO_ROOT=$(git rev-parse --show-toplevel)
 
+# Set the BUCKET variable for Terraform remote state storage.
+export BUCKET="terraform-state-${PROJECT}"
+
 # Display the environment variables.
 echo ""
 echo "PROJECT: $PROJECT"
 echo "REGION: $REGION"
 echo "TF_VAR_project_id: $TF_VAR_project_id"
 echo "TF_VAR_terraform_service_account: $TF_VAR_terraform_service_account"
+echo "BUCKET: $BUCKET"
 echo "REPO_ROOT: $REPO_ROOT"
 echo ""

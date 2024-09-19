@@ -12,10 +12,12 @@ Terraform modules to stage and deploy the application components. The `bootstrap
     - [Execute the bootstrap script](#execute-the-bootstrap-script)
 - [Automate Deployments with Cloud Build](#automate-deployments-with-cloud-build)
     - [Configure `gen_ai/llm.yaml`](#1-configure-gen_aillmyaml)
-    - [Configure optional input variable values in `terraform/main/vars.auto.tfvars`](#2-optional-configure-optional-input-variable-values-in-terraformmainvarsautotfvars)
-    - [Set environment variables](#3-set-environment-variables)
-    - [Create a `.env_gradio` file](#4-create-a-env_gradio-file)
+    - [OPTIONAL - Configure input variable values in `terraform/main/vars.auto.tfvars`](#2-optional-configure-input-variable-values-in-terraformmainvarsautotfvars)
+    - [To connect your Cloud Run services to an existing load balancer](#to-connect-your-cloud-run-services-to-an-existing-load-balancer)
+    - [Create a `.env_gradio` file](#3-create-a-env_gradio-file)
+    - [Set environment variables](#4-set-environment-variables)
     - [Build & push the docker images and apply the Terraform configuration](#5-build--push-the-docker-images-and-apply-the-terraform-configuration)
+    - [APPLICATION UPDATES](#application-updates)
 - [Add an A record to the DNS Managed Zone](#add-an-a-record-to-the-dns-managed-zone)
 - [Test the endpoint](#test-the-endpoint)
 - [Stage document extractions](#stage-document-extractions)
@@ -25,7 +27,6 @@ Terraform modules to stage and deploy the application components. The `bootstrap
     - [Trigger the workflow](#1-trigger-the-workflow)
     - [Check the progress](#2-check-the-progress)
 - [Configure Identity-Aware Proxy](#configure-identity-aware-proxy)
-
 ### REFERENCE INFO
 - [Rollbacks](#rollbacks)
     - [Option 1: Use the Cloud Console to switch Cloud Run service traffic to a different revision](#option-1-use-the-cloud-console-to-switch-cloud-run-service-traffic-to-a-different-revision)
@@ -36,6 +37,7 @@ Terraform modules to stage and deploy the application components. The `bootstrap
     - [Purge documents](#2a-optional-purge-documents)
     - [Import documents](#2b-import-documents)
     - [Verify the operation](#3-verify-the-operation)
+- [Test the respond endpoint](#test-the-respond-endpoint)
 - [Security](#security)
     - [Least Privilege Service Account roles](#least-privilege-service-account-roles)
     - [Service Account Impersonation](#service-account-impersonation)
@@ -105,9 +107,14 @@ terraform/ # this directory
 ([return to top](#talk-to-docs-application-deployment-with-terraform))
 
 - [Clone the repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) and open a terminal session in the local repo directory.
+
+```shell
+export REPO_ROOT=$(git rev-parse --show-toplevel)
+```
 - Your Google user account must be a **[Project Owner](https://cloud.google.com/iam/docs/understanding-roles#owner)** in the target project.
 - Make the helper scripts executable.
 ```sh
+cd $REPO_ROOT
 chmod +x terraform/scripts/bootstrap.sh # change the path if necessary
 chmod +x terraform/scripts/set_variables.sh # change the path if necessary
 chmod +x terraform/scripts/test_endpoint.sh # change the path if necessary
@@ -225,25 +232,33 @@ source ./terraform/scripts/bootstrap.sh # change the path if necessary
 Use the [`gcloud CLI`](https://cloud.google.com/build/docs/running-builds/submit-build-via-cli-api) with [build config files](https://cloud.google.com/build/docs/configuring-builds/create-basic-configuration) to plan and deploy project resources.
 
 ## 1. Configure `gen_ai/llm.yaml`.
-Fill in following parameters accordingly:
-- `dataset_name` - the BigQuery dataset that will store T2X logs.
-- `customer_name` - the company name used in the Agent Builder Search Engine.
-- `vais_data_store` - the Agent Builder Data Store ID (e.g. `data-store-uhg-docs`).
-- `vais_engine_id` - the Agent Builder Search Engine ID (e.g. `search-engine-uhg-docs`).
-- `processed_files_dir` - replace {dataset_name} with the `dataset_name` value from above.
-
 Verify/Change parameters if needed:
-- `bq_project_id` - leave as `null`: ensures all API clients use Application Default Credentials with resources in the same project.
-- `memory_store_ip` - the Memorystore Redis host - should always be `redis.t2xservice.internal`.
+- `bq_project_id` - leave as `null` to ensure all API clients use Application Default Credentials with resources in the same project.
+- `memory_store_ip` - the Memorystore Redis host - should always be `redis.t2xservice.internal` to use the private DNS zone created by Terraform.
 - `dataset_name` - the BigQuery dataset that will store T2X logs.
+- `terraform_instance_name` - the name of the Compute Engine instance Terraform creates. Change as needed to avoid name collisions.
+- `terraform_redis_name` the name of the Memorystore Redis instance Terraform creates. Change as needed to avoid name collisions.
 - `memory_store_ip` - leave as `redis.t2xservice.internal` when using private DNS configured with Terraform (optionally set to a manually-provisioned Redis instance IP address during local development).
 - `customer_name` - the company name used in the Agent Builder Search Engine.
-- `vais_data_store` - the Agent Builder Data Store ID (only use `null` during local development to cause the talk-to-docs application to create a new data store at startup).
-- `vais_engine_id` - the Agent Builder Search Engine ID (only use `null` during local development to cause the talk-to-docs application to create a new search engine at startup).
+- `processed_files_dir` - [FOR LOCAL DEVELOPMENT ONLY] replace {dataset_name} with the `dataset_name` value from above.
+- `vais_data_store` - the Agent Builder Data Store ID, e.g. `data-store-uhg-docs` (only use `null` during local development to cause the talk-to-docs application to create a new data store at startup).
+- `vais_engine_id` - the Agent Builder Search Engine ID, e.g. `search-engine-uhg-docs` (only use `null` during local development to cause the talk-to-docs application to create a new search engine at startup).
 - `vais_location` - the location for discoveryengine API (Agent Builder) resources, one of us, eu, or global
+- `api_mode` - one of `stateless` or `stateful`: `stateful` mode uses the Redis cache for multi-turn conversations.
+- `personalization` - leave set to `true` to enable query personalization.
 
-## 2. [OPTIONAL] Configure a domain name [input variable](https://developer.hashicorp.com/terraform/language/values/variables#assigning-values-to-root-module-variablesvalues) value in `terraform/main/vars.auto.tfvars`.
-- `global_lb_domain` - the domain name you want to use for the Cloud Load Balancer front end. You need control of the DNS zone to [edit the A record](#add-an-a-record-to-the-dns-managed-zone). If left unset, Terraform will default to using [nip.io](https://nip.io) with the load balancer IP address.
+## 2. [OPTIONAL] Configure [input variable](https://developer.hashicorp.com/terraform/language/values/variables#assigning-values-to-root-module-variablesvalues) values in `terraform/main/vars.auto.tfvars`.
+- `global_lb_domain` - the domain name you want to use for the Cloud Load Balancer front end.
+  - You need control of the DNS zone to [edit the A record](#add-an-a-record-to-the-dns-managed-zone).
+  - Setting this value also configures Cloud Run to use the domain in a [custom audience](https://cloud.google.com/run/docs/configuring/custom-audiences) for authentication.
+  - If left unset, Terraform will default to using [nip.io](https://nip.io) with the load balancer IP address and Cloud Run will not use a custom audience.
+- `create_loadbalancer` - boolean, without input defaults to `true`: set to `false` to skip creating the Cloud Load Balancer.
+
+### TO CONNECT YOUR CLOUD RUN SERVICES TO AN EXISTING LOAD BALANCER
+- Set `create_loadbalancer = false` **AND** set `global_lb_domain` to the value of the existing load balancer domain.
+- Ensure the Terraform `cloud-run` module resource `google_compute_backend_service.t2x` argument [`load_balancing_scheme`](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/compute_backend_service#load_balancing_scheme) matches the existing [load balancer type](https://cloud.google.com/load-balancing/docs/backend-service).
+- Cloud Run services will use the load balancer domain in the custom audience for authentication.
+- You must connect the backend services to the existing load balancer outside of this Terraform configuration.
 
 ## 3. Create a `.env_gradio` file.
 - Set the gradio app username and password using a local file that [python-dotenv](https://pypi.org/project/python-dotenv/) will read when the app launches.
@@ -272,7 +287,7 @@ source ./terraform/scripts/set_variables.sh # change the path if necessary
 - [OPTIONAL] Omit the `_RUN_TYPE=apply` substitution to run a plan-only build and review the Terraform changes before applying.
 ```sh
 cd $REPO_ROOT
-gcloud builds submit . --config=cloudbuild.yaml --project=$PROJECT --region=$REGION --substitutions="_RUN_TYPE=apply" --impersonate-service-account=terraform-service-account@${PROJECT}.iam.gserviceaccount.com
+gcloud builds submit . --config=cloudbuild.yaml --project=$PROJECT --region=$REGION --substitutions="_RUN_TYPE=apply" --impersonate-service-account=$TF_VAR_terraform_service_account
 ```
 
 - Review the build logs in the [Cloud Build History](https://cloud.google.com/build/docs/view-build-results) to verify the build and deployment status.
@@ -327,6 +342,12 @@ curl -X GET -H "Authorization: Bearer ${TOKEN}" "${AUDIENCE}/health"
 - [OPTIONAL] Consider skipping to the [Stage document extractions](#stage-document-extractions) step first then return here to test the endpoint after allowing time for DNS propagation.
 ```sh
 ./terraform/scripts/test_endpoint.sh # change the path if necessary
+```
+
+- The output log contains the end point AUDIENCE, e.g:
+
+```text
+AUDIENCE: https://35.244.215.210.nip.io/t2x-api
 ```
 
 
@@ -516,6 +537,7 @@ curl -X POST -H "Authorization: Bearer ${TOKEN}" -H "Content-Type: application/j
 9. Navigate back to the "Load Balancing" dashboard, select your load balancer, and then the Certificate name. If this is not yet ACTIVE, we will need to wait until it reaches ACTIVE status. Take a break and refresh occasionally.  
 10. When the certificate is ACTIVE, navigate back to Identity-Aware Proxy by searching "IAP" at the top of the Console.  
 11. Toggle on IAP protection of our backend service. The backend service may show a status of Error before you enable IAP, but enabling it should complete its configuration. You will be prompted to review configuration requirements, and then select the checkbox confirming your understanding and select "Turn On."  
+>> Make sure to only enable IAP for `t2x-ui` and leave `t2x-api` without IAP enabled (since it is not being exposed).
 
 ![OAuth Consent Screen configuration](assets/enable_iap.png)
 
@@ -560,7 +582,7 @@ source ./terraform/scripts/set_variables.sh
 
 - Initialize the Terraform `main` module configuration with the remote state by passing required arguments to the partial backend.
 ```sh
-tf init -backend-config="bucket=terraform-state-${PROJECT}" -backend-config="impersonate_service_account=terraform-service-account@${PROJECT}.iam.gserviceaccount.com"
+tf init -backend-config="bucket=$BUCKET" -backend-config="impersonate_service_account=$TF_VAR_terraform_service_account"
 ```
 
 - Set the Terraform input environment variables to the target image names.
@@ -591,7 +613,7 @@ source ./terraform/scripts/set_variables.sh # change the path if necessary
     - You might need to [reconfigure the backend](#reconfiguring-a-backend) if you've already initialized the module.
 ```sh
 cd $REPO_ROOT/terraform/main # or cd $REPO_ROOT/terraform/bootstrap
-tf init -backend-config="bucket=terraform-state-${PROJECT}" -backend-config="impersonate_service_account=terraform-service-account@${PROJECT}.iam.gserviceaccount.com"
+tf init -backend-config="bucket=$BUCKET" -backend-config="impersonate_service_account=$TF_VAR_terraform_service_account"
 ```
 
 3. Apply the Terraform configuration to provision the cloud resources.
@@ -607,8 +629,8 @@ tf apply
 ## 1. Create metadata
 - Call the `create-metadata` endpoint on the `t2x-api` service to create a `metadata.jsonl` file in the staging bucket.
 - `AUDIENCE` is the Cloud Run Custom Audience configured by the Terraform `main` module.
-- `SERVICE_ACCOUNT` is any service account with the `roles/run.invoker` IAM role on the `t2x-api` Cloud Run service.
-- The caller must have the `roles/iam.serviceAccountTokenCreator` role on `SERVICE_ACCOUNT`.
+- `RUN_INVOKER_SERVICE_ACCOUNT` is any service account with the `roles/run.invoker` IAM role on the `t2x-api` Cloud Run service.
+- The caller must have the `roles/iam.serviceAccountTokenCreator` role on `RUN_INVOKER_SERVICE_ACCOUNT`.
 - Edit the `data.json` file with the required values for the target project/environment.
     - `branch` - the Agent Builder Data Store branch name. Leave as `default_branch`.
     - `bucket_name` - the staging bucket name. i.e., `t2x-staging-my-project-id`.
@@ -674,6 +696,41 @@ export LOCATION='us'
 curl -X GET -H "Authorization: Bearer ${TOKEN}" "${AUDIENCE}/get-operation?location=${LOCATION}&operation_name=${LRO_NAME}"
 ```
 
+&nbsp;
+# Test the respond endpoint
+([return to top](#talk-to-docs-application-deployment-with-terraform))
+
+You can also call `respond` T2X service end point manually  using `curl` command.
+
+1. Obtain the `AUDIENCE`:
+- When using custom domain:
+
+```shell
+export AUDIENCE=load_balancer_domain/t2x-api
+```
+
+- If you used the default domain using the `nip.io`, you can obtain the  IP address for the AUDIENCE either:
+    - By running `test_endpoint.sh` script and copying AUDIENCE from the log output:
+
+```shell
+./terraform/scripts/test_endpoint.sh
+```
+
+- Or via the Cloud Console by navigating to the [Load Balancing](https://console.cloud.google.com/net-services/loadbalancing/list/loadBalancers),
+    - Selecting [t2x-lb-url-map](https://console.cloud.google.com/net-services/loadbalancing/details/httpAdvanced/t2x-lb-url-map)
+    - Checking the **Routing rules** - it will be in the format `xx.xx.xx.xx.nip.io` (will need to add `/t2x-api` at the end as in the example).
+
+
+2. Set the `AUDIENCE`:
+```shell
+export AUDIENCE=.. # e.g. https://35.244.215.210.nip.io/t2x-api
+```
+
+3. Send curl POST request:
+```shell
+export TOKEN=$(gcloud auth print-identity-token --impersonate-service-account=$TF_VAR_terraform_service_account --audiences=$AUDIENCE)
+curl -X POST -H "Authorization: Bearer ${TOKEN}" -H "Content-Type: application/json" -d '{"question": "I injured my back. Is massage therapy covered?", "member_context_full": {"set_number": "001acis", "member_id": "1234"}}' ${AUDIENCE}/respond/
+```
 
 &nbsp;
 # Security
