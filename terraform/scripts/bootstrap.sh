@@ -73,7 +73,7 @@ echo ""
 # Create a bucket for the Terraform state.
 echo "Creating a bucket for the Terraform state..."
 echo ""
-gcloud storage buckets create "gs://${BUCKET}" --project=$PROJECT
+gcloud storage buckets create "gs://terraform-state-${PROJECT}" --project=$PROJECT
 echo ""
 
 # Initialize the Terraform configuration in the main directory using a subshell.
@@ -81,7 +81,7 @@ echo "Initializing Terraform in the main directory..."
 echo ""
 (
 cd $REPO_ROOT/terraform/main
-terraform init -backend-config="bucket=$BUCKET" -backend-config="impersonate_service_account=$TF_VAR_terraform_service_account" -reconfigure
+terraform init -backend-config="bucket=terraform-state-${PROJECT}" -backend-config="impersonate_service_account=terraform-service-account@${PROJECT}.iam.gserviceaccount.com"
 )
 echo ""
 
@@ -90,7 +90,7 @@ echo "Initializing Terraform in the bootstrap directory and applying the configu
 echo ""
 (
 cd $REPO_ROOT/terraform/bootstrap
-terraform init -backend-config="bucket=$BUCKET" -backend-config="impersonate_service_account=$TF_VAR_terraform_service_account" -reconfigure
+terraform init -backend-config="bucket=terraform-state-${PROJECT}" -backend-config="impersonate_service_account=terraform-service-account@${PROJECT}.iam.gserviceaccount.com"
 terraform apply
 )
 echo ""

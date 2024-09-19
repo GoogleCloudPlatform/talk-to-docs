@@ -30,17 +30,17 @@ output "nat_gateway_id" {
 
 output "lb_ip_address" {
   description = "The load balancer IP address."
-  value       = var.create_loadbalancer ? module.loadbalancer[0].lb_ip_address : null
+  value       = module.loadbalancer.lb_ip_address
 }
 
 output "global_lb_domain" {
   description = "The global load balancer domain name."
-  value       = var.create_loadbalancer ? module.loadbalancer[0].global_lb_domain : null
+  value       = module.loadbalancer.global_lb_domain
 }
 
 output "cert_name" {
   description = "The Google-managed encryption certificate name."
-  value       = var.create_loadbalancer ? module.loadbalancer[0].cert_name : null
+  value       = module.loadbalancer.cert_name
 }
 
 output "bigquery_dataset_id" {
@@ -126,6 +126,11 @@ output "terraform_service_account" {
 output "doc_ingestion_workflow_service_account" {
   description = "The document ingestion Workflow service account email address."
   value       = module.iam.workflow_service_account_email
+}
+
+output "doc_ingestion_workflow_update_time" {
+  description = "The timestamp of when the workflow was last updated."
+  value       = module.workflow.doc_ingestion_workflow_update_time
 }
 
 output "doc_ingestion_workflow_env_vars" {
