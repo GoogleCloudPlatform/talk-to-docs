@@ -43,7 +43,7 @@ async def get_list_documents(view_documents_request: ListDocumentsRequest) -> Li
         documents=vait.list_documents(view_documents_request) #TODO: write list_documents function to be able to return right class of docs
     ) 
 
-@app.post("/import_documents")
+@app.post("/index_files")
 async def upload_files(user_id: str, project_name: str, files: list[UploadFile] = File(...)):
     vait = VaisImportTools(Container.config)
     process_files = vait.processor(user_id, files)
