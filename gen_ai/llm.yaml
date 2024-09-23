@@ -24,7 +24,8 @@ document_retriever: semantic #custom is for custom use case
 vais_staging_bucket: null # should be set if want to use existing bucket
 vais_data_store: null # replace with data store ID to be created in Terraform and used by T2X
 vais_engine_id: null # replace with search engine ID to be created in Terraform and used by T2X
-vais_location: us # us/global
+vais_location: global # us/global
+vais_project_id: null # for import docs
 use_prev_and_next_pieces: 1 # integer between 0 and 3
 api_mode: stateless
 personalization: true

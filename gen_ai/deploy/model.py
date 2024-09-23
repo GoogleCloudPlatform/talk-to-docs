@@ -74,6 +74,22 @@ class PersonalizedData(BaseModel):
     asof_date: str = ""
 
 
+class ListDocumentsRequest(BaseModel):
+    user_id: str
+    project_name: str
+
+class DocumentsList(BaseModel):
+    document_id: str
+    document_uri: str
+    document_filename: str
+    document_projectname: str
+
+class ListDocumentsResponse(BaseModel):
+    user_id: str
+    project_name: str
+    documents:list[DocumentsList]
+
+
 class ItemInput(BaseModel):
     question: str
     member_context_full: PersonalizedData
