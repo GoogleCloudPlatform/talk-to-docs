@@ -16,7 +16,9 @@ This module provides the following:
 """
 
 from dataclasses import dataclass, field
-from typing import Any
+from pydantic import BaseModel, HttpUrl
+from datetime import datetime
+from typing import List, Optional, Any
 
 from pydantic import BaseModel
 
@@ -78,16 +80,18 @@ class ListDocumentsRequest(BaseModel):
     user_id: str
     project_name: str
 
+
 class DocumentsList(BaseModel):
     document_id: str
     document_uri: str
     document_filename: str
     document_projectname: str
 
+
 class ListDocumentsResponse(BaseModel):
     user_id: str
     project_name: str
-    documents:list[DocumentsList]
+    documents: list[DocumentsList]
 
 
 class ItemInput(BaseModel):
@@ -127,6 +131,24 @@ class VAISConfig(BaseModel):
     metadata_filename: str
     metadata_folder: str
     source_folder: str
+
+
+class LocalDocument(BaseModel):
+    file_object: bytearray
+    file_title: str
+
+
+class ExternalDocument(BaseModel):
+    document_url: HttpUrl
+    created_on: datetime
+    document_name: str
+
+
+class RequestSchema(BaseModel):
+    project_name: str
+    user_id: str
+    local_documents: Optional[List[LocalDocument]] = []
+    external_documents: Optional[List[ExternalDocument]] = []
 
 
 class LLMOutput(BaseModel):

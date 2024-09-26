@@ -1,14 +1,5 @@
 locals {
-  # IAM roles to grant to the T2X app service account.
-  t2x_iam_roles = [
-    "roles/aiplatform.user",
-    "roles/bigquery.dataEditor",
-    "roles/bigquery.user",
-    "roles/discoveryengine.admin",
-    "roles/gkemulticloud.telemetryWriter",
-    "roles/storage.objectUser",
-  ]
-
+  config = yamldecode(file("../../gen_ai/llm.yaml"))
   # BigQuery dataset table schema.
   table_schemas = {
     "ground_truth" = {
@@ -127,4 +118,26 @@ locals {
       ]
     }
   }
+}
+provider "google" {
+  credentials = file(local.config.terraform_credentials)
+  project     = local.config.bq_project_id
+  region      = "us-central1"
+}
+
+
+resource "google_bigquery_dataset" "dataset" {
+  dataset_id    = local.config.dataset_name
+  project       = local.config.bq_project_id
+  location      = "us-central1" # Change to your desired region
+  friendly_name = "AI Experiment Data"
+}
+
+
+resource "google_bigquery_table" "tables" {
+  for_each   = local.table_schemas
+  dataset_id = google_bigquery_dataset.dataset.dataset_id
+  table_id   = each.key
+  schema     = jsonencode(each.value.fields)
+  deletion_protection = false
 }

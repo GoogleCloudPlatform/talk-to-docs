@@ -1,11 +1,12 @@
 # This file defines the LLM prompts and configuration parameters used
 # to converse with a user.
 # Project and User specific configuration
-bq_project_id: null # leave null to use ADC and write BQ logs to the deployment project - change to customize BQ location to another project
-dataset_name: dataset_name # change for new project
+bq_project_id: chertushkin-genai-sa # leave null to use ADC and write BQ logs to the deployment project - change to customize BQ location to another project
+dataset_name: uhg5 # change for new project
 gcs_source_bucket: gs://bucket location # change for new project
 terraform_instance_name: talk-to-docs-instance
 terraform_redis_name: talk-to-docs-redis-instance
+terraform_credentials: /home/chertushkin/terraform-service-account-credentials.json
 memory_store_ip: redis.t2xservice.internal # leave as is to use the default redis instance created by Terraform - change to use a different redis instance private IP
 customer_name: Customer # change for new project (gradio)
 customer_logo: https://www.gstatic.com/pantheon/images/welcome/supercloud.svg # change for new project
