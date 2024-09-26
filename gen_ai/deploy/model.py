@@ -133,9 +133,23 @@ class VAISConfig(BaseModel):
     source_folder: str
 
 
+from pydantic import BaseModel
+from typing import Optional
+import base64
+
 class LocalDocument(BaseModel):
-    file_object: bytearray
+    file_object: str
     file_title: str
+
+    @classmethod
+    def from_bytearray(cls, file_object: bytearray, file_title: str):
+        return cls(
+            file_object=base64.b64encode(file_object).decode("utf-8"),
+            file_title=file_title
+        )
+
+    def to_bytearray(self) -> bytearray:
+        return bytearray(base64.b64decode(self.file_object))
 
 
 class ExternalDocument(BaseModel):
@@ -144,7 +158,7 @@ class ExternalDocument(BaseModel):
     document_name: str
 
 
-class RequestSchema(BaseModel):
+class CreateProjectInput(BaseModel):
     project_name: str
     user_id: str
     local_documents: Optional[List[LocalDocument]] = []

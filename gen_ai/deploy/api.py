@@ -31,9 +31,11 @@ from gen_ai.deploy.model import (
     VAISConfig,
     ListDocumentsRequest,
     ListDocumentsResponse,
+    CreateProjectInput,
 )
 from gen_ai.llm import respond_api
 from gen_ai.extraction_pipeline.vais_import_tools import VaisImportTools
+from gen_ai.common.bq_utils import bq_create_project
 
 
 # Get ADC creds and project ID.
@@ -98,6 +100,12 @@ async def view_document(document_id: str):
 async def check_import_status(lro_id: str):
     vait = VaisImportTools(Container.config)
     return vait.get_import_status(lro_id)
+
+
+@app.post("/create_project/")
+async def create_project(request: CreateProjectInput):
+    project_id = bq_create_project(request.project_name, request.user_id)
+    return {"project_id": project_id}
 
 
 @app.post("/respond/", response_model=LLMOutput)
@@ -319,5 +327,3 @@ def get_instance_id() -> dict:
             "Failed to retrieve instance id",
             404,
         )
-    
-

@@ -38,6 +38,8 @@ from gen_ai.common.document_utils import convert_dict_to_relevancies, convert_di
 from gen_ai.common.ioc_container import Container
 from gen_ai.deploy.model import Conversation, QueryState
 
+medical_vertical_id = '20e264fd-7c30-4d99-8292-f02f5e92461b' # hardcoded for October demo, we show just 1 vertical now
+
 
 def create_dataset(
     client: bigquery.Client, dataset_id: str, location: str = "US", recreate_dataset: bool = False
@@ -199,6 +201,41 @@ def log_system_status(session_id: str) -> str:
     return system_state_id
 
 
+import uuid
+from datetime import datetime
+
+def bq_create_project(project_name: str, user_id: str):
+    project_id = str(uuid.uuid4())
+    
+    timestamp = datetime.now().isoformat()
+
+    project_data = {
+        "project_id": project_id,
+        "project_name": project_name,
+        "created_on": timestamp,
+        "updated_on": timestamp,
+        "vertical_id": medical_vertical_id
+    }
+    
+    insert_status_project = insert_data_to_table("projects", project_data)
+    if not insert_status_project:
+        print(f"Error while inserting project {project_name} to projects table.")
+        return None
+
+    project_user_data = {
+        "id": str(uuid.uuid4()),
+        "project_id": project_id,
+        "user_id": user_id
+    }
+    
+    insert_status_project_user = insert_data_to_table("project_user", project_user_data)
+    if not insert_status_project_user:
+        print(f"Error while inserting project-user relationship for project {project_name}.")
+        return None
+
+    return project_id
+
+
 def log_question(question: str) -> str:
     """
     Logs a question into a BigQuery table and generates a unique question ID.
@@ -331,7 +368,7 @@ class BigQueryConverter:
             "relevance_score": [],
             "additional_question": [],
             "plan_and_summaries": [],
-            "original_question": []
+            "original_question": [],
         }
         max_round = len(log_snapshots) - 1
         system_state_id = Container.system_state_id or log_system_status(session_id)
