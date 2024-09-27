@@ -28,7 +28,7 @@ class VaisImportTools:
         self.metadata_dir = config.get("METADATA_DIR", "metadata")
 
 
-    def processor(self, user_id: str, files: Any) -> str:
+    def processor(self, user_id: str, files: Any, client_project_id: str | None=None) -> str:
         """
         Processes files for a given user and imports them into a datastore.
 
@@ -51,7 +51,7 @@ class VaisImportTools:
         if not uri_list:
             return False
 
-        metadata_filename = self.create_metadata_jsonl(uri_list, user_id, self.project_id, self.bucket_address, self.metadata_dir)
+        metadata_filename = self.create_metadata_jsonl(uri_list, user_id, self.project_id, self.bucket_address, self.metadata_dir, client_project_id)
         if not metadata_filename:
             return False
         metadata_uri = f"gs://{self.bucket_address}/{metadata_filename}"
@@ -152,7 +152,8 @@ class VaisImportTools:
         user_id: str,
         project_id: str,
         bucket_address: str,
-        metadata_dir: str
+        metadata_dir: str,
+        client_project_id: str | None = None
     ) -> str | bool:
         """
         Creates a JSONL file containing metadata for a list of URIs and uploads it to a Google Cloud Storage bucket.
@@ -180,7 +181,7 @@ class VaisImportTools:
                 filename = basename[len(user_id)+1:]
             else:
                 filename = basename
-            struct_data = {"user_id": user_id, "filename": filename}
+            struct_data = {"user_id": user_id, "filename": filename, "project_id": client_project_id}
             file_extension = os.path.splitext(uri)[-1]
             doc_id = str(uuid.uuid4())
             mimetype = "application/vnd.openxmlformats-officedocument.wordprocessingml.document" if file_extension == ".docx" else "application/pdf"

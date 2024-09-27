@@ -36,6 +36,7 @@ from gen_ai.deploy.model import (
 from gen_ai.llm import respond_api
 from gen_ai.extraction_pipeline.vais_import_tools import VaisImportTools
 from gen_ai.common.bq_utils import bq_create_project
+from starlette.responses import JSONResponse
 
 
 # Get ADC creds and project ID.
@@ -102,9 +103,23 @@ async def check_import_status(lro_id: str):
     return vait.get_import_status(lro_id)
 
 
+from fastapi import FastAPI, UploadFile, File, Form
+from fastapi.responses import JSONResponse
+from typing import List
+
+
 @app.post("/create_project/")
-async def create_project(request: CreateProjectInput):
-    project_id = bq_create_project(request.project_name, request.user_id)
+async def create_project(project_name: str = Form(...), user_id: str = Form(...), files: List[UploadFile] = File(...)):
+    project_id = bq_create_project(project_name, user_id)
+
+    vait = VaisImportTools(Container.config)
+    process_files = vait.processor(user_id, files, project_name)
+    if not process_files:
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Files were not processed properly", "code": 500},
+        )
+
     return {"project_id": project_id}
 
 

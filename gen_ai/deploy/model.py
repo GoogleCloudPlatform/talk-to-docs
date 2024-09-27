@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from pydantic import BaseModel, HttpUrl
 from datetime import datetime
 from typing import List, Optional, Any
+from fastapi import UploadFile
 
 from pydantic import BaseModel
 
@@ -161,7 +162,7 @@ class ExternalDocument(BaseModel):
 class CreateProjectInput(BaseModel):
     project_name: str
     user_id: str
-    local_documents: Optional[List[LocalDocument]] = []
+    local_documents: Optional[List[UploadFile]] = []
     external_documents: Optional[List[ExternalDocument]] = []
 
 
