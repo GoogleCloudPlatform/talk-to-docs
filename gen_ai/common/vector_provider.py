@@ -827,8 +827,8 @@ class VertexAISearchVectorStrategy(VectorStrategy):
         with open(jsonl_path, "w", encoding="utf-8") as outfile:
             for entry in jsonl_data:
                 outfile.write(json.dumps(entry) + "\n")
-            jsonl_blob = new_bucket.blob(jsonl_path)
-            jsonl_blob.upload_from_filename(jsonl_path)
+        jsonl_blob = new_bucket.blob(jsonl_path)
+        jsonl_blob.upload_from_filename(jsonl_path)
         if os.path.exists(jsonl_path):
             os.remove(jsonl_path)
 
@@ -996,7 +996,7 @@ class VertexAISearchVectorStrategy(VectorStrategy):
                 serving_config=serving_config,
                 query="What is the meaning of life?",
                 page_size=10,
-                filter='data_source: ANY("b360") AND set_number: ANY("001acis")',
+                filter='section_name: ANY("introduction")',
                 content_search_spec=content_search_spec,
                 query_expansion_spec=discoveryengine.SearchRequest.QueryExpansionSpec(
                     condition=discoveryengine.SearchRequest.QueryExpansionSpec.Condition.AUTO,

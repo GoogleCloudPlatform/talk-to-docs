@@ -214,7 +214,7 @@ class Container(containers.DeclarativeContainer):
         "round_number",
         "final_round_statement",
     ]
-    react_chain = providers.Singleton(provide_chain, "simple_react_chain_prompt", _input_variables_react, "text")
+    react_chain = providers.Singleton(provide_chain, "react_chain_prompt", _input_variables_react, "text")
     json_corrector_chain = providers.Singleton(provide_chain, "json_corrector_prompt", ["json"], "text")
     aspect_based_summary_chain = providers.Singleton(
         provide_chain, "aspect_based_summary_prompt", ["retrieved_doc", "question"], "text"

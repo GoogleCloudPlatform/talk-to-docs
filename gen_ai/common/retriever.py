@@ -19,7 +19,7 @@ Dependencies:
     langchain - Used for language model chain operations and document handling.
     gen_ai - Provides utilities for document retrieval and integration with AI models.
 """
-
+import json5
 from langchain.chains import LLMChain
 from langchain.schema import Document
 from langchain_community.vectorstores.chroma import Chroma
@@ -142,11 +142,15 @@ def retrieve_initial_documents(
         similar_questions = similar_questions_chain.run(
             question=question, similar_questions_number=similar_questions_number
         )
+        try:
+            similar_questions = similar_questions.replace("`json", "").replace("`", "")
+            similar_questions = json5.loads(similar_questions)
+        except Exception as e:  # pylint: disable=W0718
+            Container.logger().info(msg="Could not parse similar questions")
+            Container.logger().info(msg=str(e))
+            similar_questions = []
         Container.logger().info(msg=f"Questions:\n {similar_questions}")
-        questions_for_search = question + "\n" + similar_questions
-        questions_for_search = questions_for_search.split("?")
-        questions_for_search = [x.replace("\n", "").strip() for x in questions_for_search]
-        questions_for_search = [f"{x}?" for x in questions_for_search if x][0 : similar_questions_number + 1]
+        questions_for_search = [question] + similar_questions.get("similar_questions", [])
     else:
         questions_for_search = [question]
 
