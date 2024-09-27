@@ -32,6 +32,10 @@ from gen_ai.deploy.model import (
     ListDocumentsRequest,
     ListDocumentsResponse,
     CreateProjectInput,
+    RemoveDocumentsRequest,
+    RemoveDocumentsResponse,
+    ViewExtractedDocumentResponse,
+    IndexDocumentsResponse,
 )
 from gen_ai.llm import respond_api
 from gen_ai.extraction_pipeline.vais_import_tools import VaisImportTools
@@ -54,44 +58,24 @@ async def get_list_documents(view_documents_request: ListDocumentsRequest) -> Li
     return ListDocumentsResponse(
         user_id=view_documents_request.user_id,
         project_name=view_documents_request.project_name,
-        documents=vait.list_documents(
-            view_documents_request
-        ),  # TODO: write list_documents function to be able to return right class of docs
+        documents=vait.list_documents(view_documents_request)
     )
 
 
 @app.post("/index_files")
-async def upload_files(user_id: str, project_name: str, files: list[UploadFile] = File(...)):
+async def upload_files(user_id: str, project_name: str, files: list[UploadFile] = File(...)) -> IndexDocumentsResponse:
     vait = VaisImportTools(Container.config)
-    process_files = vait.processor(user_id, files)
-    lro_id = process_files.split("/")[-1]
-    if process_files:
-        message = f"Successfully requested import of files! Long Running Operation: {lro_id}"
-    else:
-        message = "Error uploading files."
-    return message
+    return vait.processor(user_id, project_name, files)
 
 
-# TODO: input class, output class?
 @app.delete("/document")
-async def remove_documents(document_ids: list[str]):
-    # TODO move logic inside the function
-    success = 0
-    errors = 0
+async def remove_documents(remove_documents_request: RemoveDocumentsRequest) -> RemoveDocumentsResponse:
     vait = VaisImportTools(Container.config)
-    for document_id in document_ids:
-        removed = vait.remove_document(document_id)
-        if removed:
-            success += 1
-        else:
-            errors += 1
-    message = f"Successfully removed: {success} out of {success+errors}"
-    return message
+    return vait.remove_multiple_documents(remove_documents_request)
 
 
-# TODO: output class?
 @app.get("/document/{document_id}")
-async def view_document(document_id: str):
+async def view_document(document_id: str) -> ViewExtractedDocumentResponse:
     vait = VaisImportTools(Container.config)
     return vait.get_parsed_document(document_id)
 

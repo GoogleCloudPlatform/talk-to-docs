@@ -4,7 +4,7 @@ import os
 from typing import Any
 import uuid
 
-from gen_ai.deploy.model import ListDocumentsRequest
+from gen_ai.deploy.model import ListDocumentsRequest, RemoveDocumentsRequest,RemoveDocumentsResponse, ViewExtractedDocumentResponse, IndexDocumentsResponse
 from google.api_core.client_options import ClientOptions
 import google.auth
 from google.auth.transport.requests import AuthorizedSession
@@ -28,7 +28,7 @@ class VaisImportTools:
         self.metadata_dir = config.get("METADATA_DIR", "metadata")
 
 
-    def processor(self, user_id: str, files: Any, client_project_id: str | None=None) -> str:
+    def processor(self, user_id: str, project_name: str, files: Any) -> IndexDocumentsResponse:
         """
         Processes files for a given user and imports them into a datastore.
 
@@ -45,13 +45,12 @@ class VaisImportTools:
             The result of the document import operation.
         """
         # TODO: proper logs
-
         stage_response = self.upload_source_files_to_bucket(files, user_id, self.project_id, self.bucket_address, self.source_dir)
         uri_list = stage_response["success"]
         if not uri_list:
             return False
 
-        metadata_filename = self.create_metadata_jsonl(uri_list, user_id, self.project_id, self.bucket_address, self.metadata_dir, client_project_id)
+        metadata_filename = self.create_metadata_jsonl(uri_list, user_id, project_name, self.project_id, self.bucket_address, self.metadata_dir)
         if not metadata_filename:
             return False
         metadata_uri = f"gs://{self.bucket_address}/{metadata_filename}"
@@ -63,8 +62,18 @@ class VaisImportTools:
             datastore_id=self.datastore_id,
             metadata_uri=metadata_uri,
         )
-
-        return import_result
+        if import_result:
+            return IndexDocumentsResponse(
+                status=True,
+                message="Index operation successful",
+                lro_id=import_result
+            )
+        #TODO add proper error message
+        return IndexDocumentsResponse(
+            status=False,
+            message="Error uploading files.",
+            lro_id=""
+        )
 
 
     def upload_source_files_to_bucket(
@@ -150,10 +159,10 @@ class VaisImportTools:
         self,
         uris: list[str],
         user_id: str,
+        project_name: str, 
         project_id: str,
         bucket_address: str,
-        metadata_dir: str,
-        client_project_id: str | None = None
+        metadata_dir: str
     ) -> str | bool:
         """
         Creates a JSONL file containing metadata for a list of URIs and uploads it to a Google Cloud Storage bucket.
@@ -181,7 +190,7 @@ class VaisImportTools:
                 filename = basename[len(user_id)+1:]
             else:
                 filename = basename
-            struct_data = {"user_id": user_id, "filename": filename, "project_id": client_project_id}
+            struct_data = {"user_id": user_id, "project_name": project_name, "filename": filename}
             file_extension = os.path.splitext(uri)[-1]
             doc_id = str(uuid.uuid4())
             mimetype = "application/vnd.openxmlformats-officedocument.wordprocessingml.document" if file_extension == ".docx" else "application/pdf"
@@ -290,6 +299,25 @@ class VaisImportTools:
             return True
         return False
 
+    def remove_multiple_documents(self, request: RemoveDocumentsRequest) -> RemoveDocumentsResponse:
+        success = 0
+        errors = 0
+        for document_id in request.document_ids:
+            removed = self.remove_document(document_id)
+            if removed:
+                success += 1
+            else:
+                errors += 1
+        if success:
+            return RemoveDocumentsResponse(
+                status = True,
+                message = f"Successfully removed: {success} out of {success+errors}"
+            )
+        return RemoveDocumentsResponse(
+            status = False,
+            message = "Failed to remove documents."
+        )
+
 
     def reconstruct_document(self, chunked_document: dict[str, Any]) -> str:
         """Reconstructs a document from its chunks."""
@@ -300,8 +328,7 @@ class VaisImportTools:
         return reconstructed_document
 
 
-    def get_parsed_document(self, document_id: str) -> bool:
-
+    def get_parsed_document(self, document_id: str) -> ViewExtractedDocumentResponse:
         if self.location == "global":
             base_url = "https://discoveryengine.googleapis.com/v1alpha"
         else:
@@ -310,14 +337,22 @@ class VaisImportTools:
         endpoint = f"{base_url}/projects/{self.project_id}/locations/{self.location}/collections/default_collection/dataStores/{self.datastore_id}/branches/0/documents/{document_id}:getProcessedDocument?processed_document_type=CHUNKED_DOCUMENT"
         header = {"Content-Type": "application/json"}
         response = self.auth_session.get(endpoint, headers=header)
+
         if response.status_code == 200:
             response_json = json5.loads(response.json()["jsonData"])
-            return self.reconstruct_document(response_json)
-        return "Failed to retrieve the document."
+            return ViewExtractedDocumentResponse(
+                status = True,
+                document_id = document_id,
+                context = self.reconstruct_document(response_json)
+            )
+        return ViewExtractedDocumentResponse(
+            status = False,
+            document_id = document_id,
+            context = ""
+        )
 
 
     def get_import_status(self, lro_id: str) -> str:
-
         if self.location == "global":
             base_url = "https://discoveryengine.googleapis.com/v1"
         else:

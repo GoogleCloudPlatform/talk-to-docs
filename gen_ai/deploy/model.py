@@ -77,6 +77,12 @@ class PersonalizedData(BaseModel):
     asof_date: str = ""
 
 
+class IndexDocumentsResponse(BaseModel):
+    status: bool
+    message: str
+    lro_id: str
+
+
 class ListDocumentsRequest(BaseModel):
     user_id: str
     project_name: str
@@ -92,7 +98,23 @@ class DocumentsList(BaseModel):
 class ListDocumentsResponse(BaseModel):
     user_id: str
     project_name: str
-    documents: list[DocumentsList]
+    documents:list[DocumentsList]
+
+
+class RemoveDocumentsRequest(BaseModel):
+    user_id: str
+    document_ids: list[str]
+
+
+class RemoveDocumentsResponse(BaseModel):
+    status: bool
+    message: str
+
+
+class ViewExtractedDocumentResponse(BaseModel):
+    status: bool
+    document_id: str
+    context: str
 
 
 class ItemInput(BaseModel):
