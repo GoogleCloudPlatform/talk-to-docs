@@ -250,19 +250,18 @@ def bq_project_details(project_id: str, user_id: str):
             p.project_name,
             p.created_on,
             p.updated_on,
-            COALESCE(pr.prompt_name, dp.prompt_name) AS prompt_name,
-            COALESCE(pr.prompt_value, dp.prompt_value) AS prompt_value
+            dp.prompt_name AS prompt_name,
+            prompt_value AS prompt_value
         FROM `{dataset_id}.projects` p
-        -- Join with project_user to ensure the user has access to this project
+        -- Join project_user to ensure the user has access to this project
         JOIN `{dataset_id}.project_user` pu 
             ON p.project_id = pu.project_id
-        -- Left join prompts to default_prompts, prioritizing project-specific prompts
-        LEFT JOIN `{dataset_id}.prompts` pr 
-            ON p.project_id = pr.project_id
+        -- Left join prompts (project-specific prompts)
+        -- Left join default_prompts based on vertical_id
         LEFT JOIN `{dataset_id}.default_prompts` dp 
             ON dp.vertical_id = p.vertical_id
-            AND dp.prompt_name = pr.prompt_name
-        WHERE p.project_id = @project_id AND pu.user_id = @user_id
+        WHERE p.project_id = '8e6b286d-950a-4945-8734-3aecab7e71b6'
+        AND pu.user_id = 'user_123'
     )
     SELECT 
         project_name, 
@@ -271,6 +270,7 @@ def bq_project_details(project_id: str, user_id: str):
         ARRAY_AGG(STRUCT(prompt_name, prompt_value)) AS prompt_configuration
     FROM ProjectDetails
     GROUP BY project_name, created_on, updated_on
+
     """
 
     job_config = bigquery.QueryJobConfig(
