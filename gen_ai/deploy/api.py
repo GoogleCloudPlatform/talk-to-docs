@@ -112,13 +112,14 @@ from typing import List
 async def create_project(project_name: str = Form(...), user_id: str = Form(...), files: List[UploadFile] = File(...)):
     project_id = bq_create_project(project_name, user_id)
 
-    vait = VaisImportTools(Container.config)
-    process_files = vait.processor(user_id, files, project_name)
-    if not process_files:
-        return JSONResponse(
-            status_code=500,
-            content={"detail": "Files were not processed properly", "code": 500},
-        )
+    # uncomment when Uploading works
+    # vait = VaisImportTools(Container.config)
+    # process_files = vait.processor(user_id, files, project_name)
+    # if not process_files:
+    #     return JSONResponse(
+    #         status_code=500,
+    #         content={"detail": "Files were not processed properly", "code": 500},
+    #     )
 
     return {"project_id": project_id}
 
