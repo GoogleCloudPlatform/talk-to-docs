@@ -1,7 +1,7 @@
 import requests
 
 # API endpoint
-url = "http://127.0.0.1:8080/create_project"
+url = "https://test-misha-deploy-wbkml5x37q-uc.a.run.app/create_project"
 
 # Replace with the actual user ID and project name
 user_id = "user_123"

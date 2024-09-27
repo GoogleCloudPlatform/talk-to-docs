@@ -2,7 +2,7 @@ import requests
 import base64
 
 
-url = "http://127.0.0.1:8080/create_project/" 
+url = "https://test-misha-deploy-wbkml5x37q-uc.a.run.app/create_project/" 
 
 example_bytearray = bytearray(b"dummy file content")
 encoded_file_object = base64.b64encode(example_bytearray).decode('utf-8')
