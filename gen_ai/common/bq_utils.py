@@ -25,7 +25,6 @@ import json
 import os
 import re
 import uuid
-from datetime import datetime
 from typing import Any
 
 import git
@@ -200,10 +199,6 @@ def log_system_status(session_id: str) -> str:
         print(f"Error while logging system state id to bq table. Github hash: {git_hash}; GCS bucket: {gcs_bucket}")
     Container.system_state_id = system_state_id
     return system_state_id
-
-
-import uuid
-from datetime import datetime
 
 
 def bq_create_project(project_name: str, user_id: str):
