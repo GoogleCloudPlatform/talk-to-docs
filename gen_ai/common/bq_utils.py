@@ -38,7 +38,7 @@ from gen_ai.common.document_utils import convert_dict_to_relevancies, convert_di
 from gen_ai.common.ioc_container import Container
 from gen_ai.deploy.model import Conversation, QueryState
 
-medical_vertical_id = '20e264fd-7c30-4d99-8292-f02f5e92461b' # hardcoded for October demo, we show just 1 vertical now
+medical_vertical_id = "20e264fd-7c30-4d99-8292-f02f5e92461b"  # hardcoded for October demo, we show just 1 vertical now
 
 
 def create_dataset(
@@ -204,9 +204,10 @@ def log_system_status(session_id: str) -> str:
 import uuid
 from datetime import datetime
 
+
 def bq_create_project(project_name: str, user_id: str):
     project_id = str(uuid.uuid4())
-    
+
     timestamp = datetime.now().isoformat()
 
     project_data = {
@@ -214,26 +215,88 @@ def bq_create_project(project_name: str, user_id: str):
         "project_name": project_name,
         "created_on": timestamp,
         "updated_on": timestamp,
-        "vertical_id": medical_vertical_id
+        "vertical_id": medical_vertical_id,
     }
-    
+
     insert_status_project = insert_data_to_table("projects", project_data)
     if not insert_status_project:
         print(f"Error while inserting project {project_name} to projects table.")
         return None
 
-    project_user_data = {
-        "id": str(uuid.uuid4()),
-        "project_id": project_id,
-        "user_id": user_id
-    }
-    
+    project_user_data = {"id": str(uuid.uuid4()), "project_id": project_id, "user_id": user_id}
+
     insert_status_project_user = insert_data_to_table("project_user", project_user_data)
     if not insert_status_project_user:
         print(f"Error while inserting project-user relationship for project {project_name}.")
         return None
 
     return project_id
+
+
+from google.cloud import bigquery
+from datetime import datetime
+
+# Initialize BigQuery client
+client = bigquery.Client()
+
+
+def bq_project_details(project_id: str, user_id: str):
+    dataset_id = get_dataset_id()
+
+    query = f"""
+    WITH ProjectDetails AS (
+        -- Fetch project details from the projects table
+        SELECT 
+            p.project_name,
+            p.created_on,
+            p.updated_on,
+            COALESCE(pr.prompt_name, dp.prompt_name) AS prompt_name,
+            COALESCE(pr.prompt_value, dp.prompt_value) AS prompt_value
+        FROM `{dataset_id}.projects` p
+        -- Join with project_user to ensure the user has access to this project
+        JOIN `{dataset_id}.project_user` pu 
+            ON p.project_id = pu.project_id
+        -- Left join prompts to default_prompts, prioritizing project-specific prompts
+        LEFT JOIN `{dataset_id}.prompts` pr 
+            ON p.project_id = pr.project_id
+        LEFT JOIN `{dataset_id}.default_prompts` dp 
+            ON dp.vertical_id = p.vertical_id
+            AND dp.prompt_name = pr.prompt_name
+        WHERE p.project_id = @project_id AND pu.user_id = @user_id
+    )
+    SELECT 
+        project_name, 
+        created_on, 
+        updated_on,
+        ARRAY_AGG(STRUCT(prompt_name, prompt_value)) AS prompt_configuration
+    FROM ProjectDetails
+    GROUP BY project_name, created_on, updated_on
+    """
+
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("project_id", "STRING", project_id),
+            bigquery.ScalarQueryParameter("user_id", "STRING", user_id),
+        ]
+    )
+
+    query_job = client.query(query, job_config=job_config)
+
+    results = list(query_job.result())
+
+    project_details = None
+    for row in results:
+        project_details = {
+            "project_name": row.project_name,
+            "created_on": row.created_on,
+            "updated_on": row.updated_on,
+            "prompt_configuration": [
+                {"prompt_name": prompt["prompt_name"], "prompt_value": prompt["prompt_value"]}
+                for prompt in row.prompt_configuration
+            ],
+        }
+
+    return project_details
 
 
 def log_question(question: str) -> str:

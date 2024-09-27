@@ -35,7 +35,7 @@ from gen_ai.deploy.model import (
 )
 from gen_ai.llm import respond_api
 from gen_ai.extraction_pipeline.vais_import_tools import VaisImportTools
-from gen_ai.common.bq_utils import bq_create_project
+from gen_ai.common.bq_utils import bq_create_project, bq_project_details
 from starlette.responses import JSONResponse
 
 
@@ -122,6 +122,13 @@ async def create_project(project_name: str = Form(...), user_id: str = Form(...)
     #     )
 
     return {"project_id": project_id}
+
+@app.post("/project_details/")
+async def project_details(project_id: str = Form(...), user_id: str = Form(...)):
+    project_details = bq_project_details(project_id, user_id)
+
+    return project_details
+
 
 
 @app.post("/respond/", response_model=LLMOutput)
