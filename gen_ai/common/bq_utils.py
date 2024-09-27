@@ -25,6 +25,7 @@ import json
 import os
 import re
 import uuid
+from datetime import datetime
 from typing import Any
 
 import git
@@ -233,13 +234,6 @@ def bq_create_project(project_name: str, user_id: str):
     return project_id
 
 
-from google.cloud import bigquery
-from datetime import datetime
-
-# Initialize BigQuery client
-client = bigquery.Client()
-
-
 def bq_project_details(project_id: str, user_id: str):
     dataset_id = get_dataset_id()
 
@@ -280,6 +274,7 @@ def bq_project_details(project_id: str, user_id: str):
         ]
     )
 
+    client = Container.logging_bq_client()
     query_job = client.query(query, job_config=job_config)
 
     results = list(query_job.result())
@@ -297,6 +292,39 @@ def bq_project_details(project_id: str, user_id: str):
         }
 
     return project_details
+
+
+def bq_change_prompt(project_id: str, user_id: str, prompt_name: str, prompt_value: str):
+    dataset_id = get_dataset_id()
+
+    query = f"""
+    MERGE `{dataset_id}.prompts` AS target
+    USING (SELECT @project_id AS project_id, @prompt_name AS prompt_name) AS source
+    ON target.project_id = source.project_id AND target.prompt_name = source.prompt_name
+    WHEN MATCHED THEN 
+        UPDATE SET prompt_value = @prompt_value, created_on = CURRENT_TIMESTAMP()
+    WHEN NOT MATCHED THEN
+        INSERT (id, project_id, vertical_id, prompt_name, prompt_value, created_on)
+        VALUES (GENERATE_UUID(), @project_id, (SELECT vertical_id FROM `{dataset_id}.projects` WHERE project_id = @project_id), @prompt_name, @prompt_value, CURRENT_TIMESTAMP())
+    """
+    client = Container.logging_bq_client()
+
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("project_id", "STRING", project_id),
+            bigquery.ScalarQueryParameter("prompt_name", "STRING", prompt_name),
+            bigquery.ScalarQueryParameter("prompt_value", "STRING", prompt_value),
+        ]
+    )
+
+    query_job = client.query(query, job_config=job_config)
+
+    query_job.result()
+
+    return {
+        "status": "success",
+        "message": f"Prompt '{prompt_name}' updated/inserted successfully for project '{project_id}'.",
+    }
 
 
 def log_question(question: str) -> str:
