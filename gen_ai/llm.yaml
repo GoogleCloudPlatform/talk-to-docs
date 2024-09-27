@@ -7,7 +7,7 @@ gcs_source_bucket: gs://bucket location # change for new project
 terraform_instance_name: talk-to-docs-instance
 terraform_redis_name: talk-to-docs-redis-instance
 terraform_credentials: /home/chertushkin/terraform-service-account-credentials.json
-memory_store_ip: redis.t2xservice.internal # leave as is to use the default redis instance created by Terraform - change to use a different redis instance private IP
+memory_store_ip: 10.151.191.44 # leave as is to use the default redis instance created by Terraform - change to use a different redis instance private IP
 customer_name: Customer # change for new project (gradio)
 customer_logo: cymbal_health.png #https://www.gstatic.com/pantheon/images/welcome/supercloud.svg # change for new project
 processed_files_dir: /mnt/resources/{dataset_name}/main_folder
@@ -36,7 +36,7 @@ max_context_size: 1025000
 max_rounds: 1
 similar_questions_number: 2
 use_full_documents: true
-use_relevancy_score: true
+use_relevancy_score: false
 retriever_score_threshold: 2
 max_number_of_docs_retrieved: 3
 use_mmr: false

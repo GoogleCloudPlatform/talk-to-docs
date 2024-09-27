@@ -35,7 +35,7 @@ from gen_ai.deploy.model import (
 )
 from gen_ai.llm import respond_api
 from gen_ai.extraction_pipeline.vais_import_tools import VaisImportTools
-from gen_ai.common.bq_utils import bq_create_project, bq_project_details, bq_change_prompt
+from gen_ai.common.bq_utils import bq_create_project, bq_project_details, bq_change_prompt, bq_debug_response
 from starlette.responses import JSONResponse
 
 
@@ -137,7 +137,14 @@ async def change_prompt(
 ):
     change_prompt = bq_change_prompt(project_id, user_id, prompt_name, prompt_value)
 
-    return project_details
+    return change_prompt
+
+
+@app.post("/debug_response/")
+async def debug_response(prediction_id: str = Form(...)):
+    debug_info = bq_debug_response(prediction_id)
+
+    return debug_info
 
 
 @app.post("/respond/", response_model=LLMOutput)

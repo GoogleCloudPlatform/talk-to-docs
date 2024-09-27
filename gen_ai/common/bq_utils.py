@@ -313,13 +313,85 @@ def bq_change_prompt(project_id: str, user_id: str, prompt_name: str, prompt_val
     )
 
     query_job = client.query(query, job_config=job_config)
+    try:
+        res = list(query_job.result())
+    except Exception as e:
+        return {"status": False}
 
-    query_job.result()
+    return {"status": True}
 
-    return {
-        "status": "success",
-        "message": f"Prompt '{prompt_name}' updated/inserted successfully for project '{project_id}'.",
-    }
+
+def bq_debug_response(prediction_id: str):
+    dataset_id = get_dataset_id()
+
+    query = f"""
+    SELECT *
+    FROM `{dataset_id}.prediction`
+    WHERE prediction_id = @prediction_id
+    """
+
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[bigquery.ScalarQueryParameter("prediction_id", "STRING", prediction_id)]
+    )
+
+    client = Container.logging_bq_client()
+    query_job = client.query(query, job_config=job_config)
+
+    results = query_job.result()
+
+    prediction_data = [dict(row) for row in results]
+
+    formatted_data = format_prediction_data(prediction_data)
+    return formatted_data
+
+
+def format_prediction_data(data):
+    formatted_output = {}
+
+    previous_context = []
+    for i, row in enumerate(data):
+        previous_context.append(
+            f"- Previous question #{i} was: {row['question']}\n"
+            f"- Previous answer #{i} was: {row['response']}\n"
+            f"- Previous additional information to retrieve #{i} was: {row.get('additional_question', 'N/A')}"
+        )
+    formatted_output["Previous Context"] = "\n".join(previous_context)
+
+    round_information = []
+    for i, row in enumerate(data):
+        round_info = {
+            "Plan and Summaries": row["plan_and_summaries"],
+            "Answer": row["response"],
+            "Additional Info to Retrieve": row.get("additional_question", "N/A"),
+            "Confidence Score": row["confidence_score"],
+            # "Context Used": row["retrieved_documents_so_far_content"],
+        }
+        round_information.append(round_info)
+    formatted_output["Round Information"] = round_information
+
+    document_details = []
+    for i, row in enumerate(data):
+        try:
+            doc_metadata = eval(row["post_filtered_documents_so_far_all_metadata"])
+            for x in doc_metadata:
+                x['page_content'] = x['page_content'][0:150] + '...'
+            document_details.append(f"Round #{i + 1} Document Details:\n" + doc_metadata)
+        except:
+            continue
+
+    formatted_output["Document Details"] = "\n".join(document_details)
+
+    time_taken = []
+    for i, row in enumerate(data):
+        time_taken.append(
+            f"Round #{i}:\n"
+            f"Total time taken: {row['time_taken_total']}s\n"
+            f"Retrieval time taken: {row['time_taken_retrieval']}s\n"
+            f"LLM time taken: {row['time_taken_llm']}s\n"
+        )
+    formatted_output["Time Taken"] = "\n".join(time_taken)
+
+    return formatted_output
 
 
 def log_question(question: str) -> str:
