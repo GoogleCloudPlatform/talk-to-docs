@@ -4,7 +4,7 @@ import os
 from typing import Any
 import uuid
 
-from gen_ai.deploy.model import ListDocumentsRequest, RemoveDocumentsRequest,RemoveDocumentsResponse, ViewExtractedDocumentResponse, IndexDocumentsResponse
+from gen_ai.deploy.model import DocumentsRequest, RemoveDocumentsRequest,RemoveDocumentsResponse, ViewExtractedDocumentResponse, IndexDocumentsResponse
 from google.api_core.client_options import ClientOptions
 import google.auth
 from google.auth.transport.requests import AuthorizedSession
@@ -234,7 +234,7 @@ class VaisImportTools:
         return False
 
 
-    def list_documents(self, request: ListDocumentsRequest) -> list[dict[str, str]]:
+    def list_documents(self, request: DocumentsRequest) -> list[dict[str, str]]:
         """
         Lists documents associated with a specific user ID from the Discovery Engine service.
 
@@ -365,5 +365,20 @@ class VaisImportTools:
             else:
                 return "INPROGRESS"
         return "Failed to retrieve the import status."
+    
+    def get_import_works(self) -> list[str] | None:
+        if self.location == "global":
+            base_url = "https://discoveryengine.googleapis.com/v1"
+        else:
+            base_url = f"https://{self.location}-discoveryengine.googleapis.com/v1"
+        endpoint = f"{base_url}/projects/{self.project_id}/locations/{self.location}/collections/default_collection/dataStores/{self.datastore_id}/operations/"
+        response = self.auth_session.get(endpoint)
+        if response.status_code == 200:
+            pending_operations = []
+            for operation in response.json()["operations"]:
+                if "done" not in operation:
+                    pending_operations.append(operation["name"])
+            return pending_operations
+        return None
         
 

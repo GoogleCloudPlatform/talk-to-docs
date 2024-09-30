@@ -83,9 +83,9 @@ class IndexDocumentsResponse(BaseModel):
     lro_id: str
 
 
-class ListDocumentsRequest(BaseModel):
+class DocumentsRequest(BaseModel):
     user_id: str
-    project_name: str
+    client_project_id: str
 
 
 class DocumentsList(BaseModel):

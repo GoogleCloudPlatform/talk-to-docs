@@ -232,9 +232,6 @@ def bq_get_lro_entries(user_id: str, client_project_id: str) -> list[str]:
     lro_data = [row.lro_id for row in results]
 
     return lro_data
-    
-def bq_update_lro_entries(user_id: str, client_project_id: str, lros_list) -> bool:
-    pass
 
 
 def bq_create_project(project_name: str, user_id: str):

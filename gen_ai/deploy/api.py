@@ -32,7 +32,7 @@ from gen_ai.deploy.model import (
     ResponseInput,
     ResponseOutput,
     VAISConfig,
-    ListDocumentsRequest,
+    DocumentsRequest,
     ListDocumentsResponse,
     CreateProjectInput,
     RemoveDocumentsRequest,
@@ -64,11 +64,11 @@ items_db = {}
 
 
 @app.post("/documents")
-async def get_list_documents(view_documents_request: ListDocumentsRequest) -> ListDocumentsResponse:
+async def get_list_documents(view_documents_request: DocumentsRequest) -> ListDocumentsResponse:
     vait = VaisImportTools(Container.config)
     return ListDocumentsResponse(
         user_id=view_documents_request.user_id,
-        project_name=view_documents_request.project_name,
+        project_name=view_documents_request.client_project_id,
         documents=vait.list_documents(view_documents_request),
     )
 
@@ -96,21 +96,19 @@ async def view_document(document_id: str) -> ViewExtractedDocumentResponse:
 
 # TODO: output class?
 @app.post("/import_status")
-async def check_import_status(user_id: str, client_project_id: str):
-    lros_list = bq_get_lro_entries(user_id, client_project_id)
+async def check_import_status(check_request: DocumentsRequest) -> dict[str, list[str]]:
+    lros_bq_hashset = (bq_get_lro_entries(check_request.user_id, check_request.client_project_id))
     vait = VaisImportTools(Container.config)
-    pending_lros = []
-    for lro_id in lros_list:
-        response = vait.get_import_status(lro_id)
-        if response=="INPROGRESS":
-            pending_lros.append(lro_id)
-        else:
-            # Update status in BQ
-            pass
+    pending_operations = vait.get_import_works()
+    lros_pending_list = []
+    if pending_operations is not None:
+        for operation in pending_operations:
+            if operation in lros_bq_hashset:
+                lros_pending_list.append(operation)
     response = {
-        "lros_pending_list": pending_lros
+        "lros_pending_list": lros_pending_list
     }
-    return
+    return response
 
 
 @app.post("/create_project/")
