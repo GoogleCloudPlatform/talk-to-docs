@@ -204,7 +204,7 @@ def log_system_status(session_id: str) -> str:
 def bq_create_project(project_name: str, user_id: str):
     project_id = str(uuid.uuid4())
 
-    timestamp = datetime.now().isoformat()
+    timestamp = datetime.datetime.now().isoformat()
 
     project_data = {
         "project_id": project_id,
