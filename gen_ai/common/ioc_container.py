@@ -39,6 +39,7 @@ Usage:
 
 import logging
 import sys
+import os
 from concurrent.futures import ThreadPoolExecutor
 from logging import Logger
 
@@ -59,7 +60,7 @@ from gen_ai.common.exponential_retry import LLMExponentialRetryWrapper
 from gen_ai.common.storage import DefaultStorage
 from gen_ai.common.vector_provider import VectorStrategy, VectorStrategyProvider
 
-LLM_YAML_FILE = "gen_ai/llm.yaml"
+LLM_YAML_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "llm.yaml")
 
 
 def create_bq_client(project_id: str | None = None) -> bigquery.Client | None:
