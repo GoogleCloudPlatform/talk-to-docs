@@ -201,6 +201,42 @@ def log_system_status(session_id: str) -> str:
     return system_state_id
 
 
+def bq_add_lro_entry(user_id: str, client_project_id: str, lro_id: str) -> bool:
+    lro_data = {
+        "user_id": user_id,
+        "client_project_id": client_project_id,
+        "lro_id": lro_id,
+        "status": "INPROGRESS"
+    }
+
+    insert_status = insert_data_to_table("lros", lro_data)
+    if not insert_status:
+        print(f"Error while logging lro {lro_id} to bq table.")
+    return insert_status
+
+
+def bq_get_lro_entries(user_id: str, client_project_id: str) -> list[str]:
+    dataset_id = get_dataset_id()
+
+    query = f"""
+    SELECT *
+    FROM `{dataset_id}.lros`
+    WHERE user_id='{user_id}' 
+            AND client_project_id='{client_project_id}' 
+            AND status='INPROGRESS'
+    """
+    client = Container.logging_bq_client()
+    query_job = client.query(query)
+
+    results = query_job.result()
+    lro_data = [row.lro_id for row in results]
+
+    return lro_data
+    
+def bq_update_lro_entries(user_id: str, client_project_id: str, lros_list) -> bool:
+    pass
+
+
 def bq_create_project(project_name: str, user_id: str):
     project_id = str(uuid.uuid4())
 

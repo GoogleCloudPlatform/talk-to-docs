@@ -361,9 +361,9 @@ class VaisImportTools:
         response = self.auth_session.get(endpoint)
         if response.status_code == 200:
             if "done" in response.json():
-                return "Files imported successfully"
+                return "SUCCESS"
             else:
-                return "Import in progress"
+                return "INPROGRESS"
         return "Failed to retrieve the import status."
         
 

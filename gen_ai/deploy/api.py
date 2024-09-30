@@ -48,6 +48,8 @@ from gen_ai.common.bq_utils import (
     bq_change_prompt,
     bq_debug_response,
     bq_all_projects,
+    bq_add_lro_entry,
+    bq_get_lro_entries,
 )
 from starlette.responses import JSONResponse
 
@@ -72,9 +74,12 @@ async def get_list_documents(view_documents_request: ListDocumentsRequest) -> Li
 
 
 @app.post("/index_files")
-async def upload_files(user_id: str, project_name: str, files: list[UploadFile] = File(...)) -> IndexDocumentsResponse:
+async def upload_files(user_id: str, client_project_id: str, files: list[UploadFile] = File(...)) -> IndexDocumentsResponse:
     vait = VaisImportTools(Container.config)
-    return vait.processor(user_id, project_name, files)
+    response = vait.processor(user_id, client_project_id, files)
+    if response.status:
+        bq_add_lro_entry(user_id, client_project_id, response.lro_id)
+    return response
 
 
 @app.delete("/document")
@@ -90,10 +95,22 @@ async def view_document(document_id: str) -> ViewExtractedDocumentResponse:
 
 
 # TODO: output class?
-@app.get("/import_status/{lro_id}")
-async def check_import_status(lro_id: str):
+@app.post("/import_status")
+async def check_import_status(user_id: str, client_project_id: str):
+    lros_list = bq_get_lro_entries(user_id, client_project_id)
     vait = VaisImportTools(Container.config)
-    return vait.get_import_status(lro_id)
+    pending_lros = []
+    for lro_id in lros_list:
+        response = vait.get_import_status(lro_id)
+        if response=="INPROGRESS":
+            pending_lros.append(lro_id)
+        else:
+            # Update status in BQ
+            pass
+    response = {
+        "lros_pending_list": pending_lros
+    }
+    return
 
 
 @app.post("/create_project/")
@@ -103,6 +120,8 @@ async def create_project(project_name: str = Form(...), user_id: str = Form(...)
     # uncomment when Uploading works
     vait = VaisImportTools(Container.config)
     process_files = vait.processor(user_id, project_name, files)
+    if process_files.status:
+        bq_add_lro_entry(user_id, project_id, process_files.lro_id)
     if not process_files:
         return JSONResponse(
             status_code=500,

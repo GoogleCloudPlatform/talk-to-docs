@@ -117,6 +117,14 @@ locals {
         { name = "created_on", type = "TIMESTAMP", mode = "REQUIRED" }
       ]
     }
+    "lros" = {
+      fields = [
+        { name = "user_id", type = "STRING", mode = "REQUIRED" },
+        { name = "client_project_id", type = "STRING", mode = "REQUIRED" },
+        { name = "lro_id", type = "STRING", mode = "REQUIRED" },
+        { name = "status", type = "STRING", mode = "REQUIRED" },
+      ]
+    }
   }
 }
 provider "google" {
