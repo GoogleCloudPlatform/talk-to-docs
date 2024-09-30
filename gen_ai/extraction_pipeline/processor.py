@@ -122,6 +122,7 @@ def process_directory(
                 failure += 1
 
     print(f"Successfully processed {success} out of {success+failure} files.")
+    print(f"Output directory: {output_dir}")
     print(f"Total Directory Processing Time: {default_timer()-start_time}")
 
     if success:

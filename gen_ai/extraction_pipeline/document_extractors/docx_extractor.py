@@ -89,13 +89,13 @@ def _convert_date(date_str: str) -> str | None:
         None: If the provided date_str cannot be parsed into the expected
         format.
     """
-    try:
-        date = datetime.datetime.strptime(date_str, "%B %d, %Y").strftime(
-            "%m/%d/%Y"
-        )
-        return date
-    except ValueError:
-        return None
+    formats = ["%B %d, %Y", "%m/%d/%Y"]
+    for fmt in formats:
+        try:
+            return datetime.datetime.strptime(date_str, fmt).strftime("%m/%d/%Y")
+        except ValueError:
+            continue  # If it doesn't match this format, try the next one
+    return None  # If no format matches, return None
 
 
 class DocxExtractor(BaseExtractor):
@@ -126,6 +126,9 @@ class DocxExtractor(BaseExtractor):
         )
         self.docx_chunking = config_file_parameters.get(
             "docx_chunking", "default"
+        )
+        self.chunk_level = config_file_parameters.get(
+            "docx_chunk_level", 1
         )
         self.document = None
         self.raw_text = None
@@ -186,14 +189,15 @@ class DocxExtractor(BaseExtractor):
         for (_, section_name), context in document_chunks.items():
             filepath = self.create_filepath(metadata, section_name, output_dir)
 
-            with open(filepath + ".txt", "w", encoding="utf-8") as f:
-                f.write(context)
-            temp_metadata = metadata.copy()
-            temp_metadata.pop("filename")
-            temp_metadata["section_name"] = section_name.lower()
+            if context.strip():
+                with open(filepath + ".txt", "w", encoding="utf-8") as f:
+                    f.write(context)
+                temp_metadata = metadata.copy()
+                temp_metadata.pop("filename")
+                temp_metadata["section_name"] = section_name.lower()
 
-            with open(filepath + "_metadata.json", "w", encoding="utf-8") as f:
-                json.dump(temp_metadata, f)
+                with open(filepath + "_metadata.json", "w", encoding="utf-8") as f:
+                    json.dump(temp_metadata, f)
         return True
 
     def process(self, output_dir: str) -> bool:
@@ -225,7 +229,7 @@ class DocxExtractor(BaseExtractor):
         if not metadata:
             return False
 
-        document_chunker = DefaultDocxChunker(self.document, self.raw_text)
+        document_chunker = DefaultDocxChunker(self.document, self.raw_text, self.chunk_level)
         document_chunks = document_chunker.chunk_the_document()
         additional_kc_chunks = (
             CustomKcDocxChunker(self.document, self.raw_text).chunk_the_document()
@@ -358,9 +362,10 @@ class CustomKcDocxMetadataCreator(DefaultDocxMetadataCreator):
         if match:
             effective_date = match.group(1).strip()
             effective_date = _convert_date(effective_date)
-            return effective_date.lower()
-        else:
-            return None
+            if effective_date:
+                return effective_date.lower()
+
+        return None
 
     def _extract_planname(self) -> str | None:
         """Extracts the insurance plan name from the provided Document file.
@@ -392,29 +397,46 @@ class CustomKcDocxMetadataCreator(DefaultDocxMetadataCreator):
             None: If no paragraph with the "Title" style is found.
         """
 
-        title = None
+        title_style = None
+        title_text = None
+        splitted_text = self.raw_text.split("\n")
+        for line in splitted_text:
+            if line.lower().startswith("title:"):
+                title_text = line[len("title:")+1:]
+                break
+
         for paragraph in self.document.paragraphs:
             if "Title" in paragraph.style.name:
-                title = paragraph.text.lower()
+                title_style = paragraph.text.lower()
+                break
 
-        return title
+
+        if title_style:
+            return title_style
+
+        return title_text
 
     def _extract_doc_identifier(self) -> str | None:
         """Extracts the doc_identifier from the filename of the document.
 
-        Searches for a pattern like "KM...".
+        Searches for a pattern like "KM... or KB...".
 
         Returns:
             str: The formatted doc_identifier if found.
             None: If the doc_identifier pattern is not found in the filename.
         """
-        match = re.search(r"km\d+", self.filename.lower())
+        patterns = [r"km\d+", r"kb\d+"]
 
-        if match:
-            doc_identifier = match.group().strip()
-            return doc_identifier
-        else:
-            return None
+        for pattern in patterns:
+            match = re.search(pattern, self.filename.lower())
+            if not match:
+                match = re.search(pattern, self.raw_text.lower())
+
+            if match:
+                doc_identifier = match.group().strip()
+                return doc_identifier
+
+        return None
 
     def create_metadata(self) -> dict[str, str]:
         """Method to be implemented by subclasses.
@@ -431,7 +453,10 @@ class CustomKcDocxMetadataCreator(DefaultDocxMetadataCreator):
         plan_name = self._extract_planname()
         doc_identifier = self._extract_doc_identifier()
 
-        filename = f"{policy_number}-{title}"
+        if policy_number:
+            filename = f"{policy_number}-{title}"
+        else:
+            filename = f"{doc_identifier}-{title}"
         filename = re.sub(r"[^\w.-]", "_", filename)
         filename = re.sub(r"__+", "_", filename).rstrip("_")
 
@@ -489,8 +514,10 @@ class DefaultDocxChunker:
         sections_names = []
         for paragraph in self.document.paragraphs:
             if style.lower() in paragraph.style.name.lower():
-                level = int(re.findall(r"\d+", paragraph.style.name)[0])
-                sections_names.append((level, paragraph.text))
+                found_results = re.findall(r"\d+", paragraph.style.name)
+                if found_results:
+                    level = int(found_results[0])
+                    sections_names.append((level, paragraph.text))
         return sections_names
 
     def get_next_section_index(

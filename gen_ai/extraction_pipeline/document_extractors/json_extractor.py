@@ -16,7 +16,7 @@
 And organizing the extracted data into separate files for structured document
 processing.
 """
-
+import copy
 import datetime
 import json
 import os
@@ -322,11 +322,16 @@ class DefaultJsonChunker:
         filepath (str): The path to the JSON file.
         data (dict[str, Any]): The loaded dictionary representation of the JSON
           data.
+        config (dict[str, str]): Configuration settings for the extraction process.
     """
 
-    def __init__(self, filepath: str, data: dict[str, Any]):
+    def __init__(self, filepath: str, data: dict[str, Any], config: dict[str, str] | None = None):
         self.filepath = filepath
         self.data = data
+        if not config:
+            self.config = {}
+        else:
+            self.config = config
 
     def chunk_the_document(self) -> dict[tuple[str, str], str]:
         """Creates chunks from the JSON data.
@@ -360,7 +365,7 @@ class CustomJsonChunkerOne(DefaultJsonChunker):
 
         # Check content type for "article". Need to decide if necessary
         output_data = {("", ""): ""}
-        mime_type = self.data["metadata"]["content"].get("mimeType")
+        mime_type = self.data["metadata"]["content"].get("mimeType") or self.data["metadata"]["content"].get("mimetype")
         if not mime_type:
             raise TypeError("Wrong type of KC json data")
         if "text/html" in mime_type:
@@ -374,10 +379,9 @@ class CustomJsonChunkerOne(DefaultJsonChunker):
             processed_text = f"{section_name}\n{processed_text}"
             output_data = {("", section_name): processed_text}
         elif "pdf" in mime_type:
-            #TODO: come up with better storage
-            filepath = f"raw_files/{self.data.get('name')}.pdf"
+            filepath = f"{self.config.get('raw_files_path', 'raw_files')}/{self.data.get('name')}.pdf"
             extractor = DefaultPdfExtractor(filepath)
-            elements = extractor.extract_document(True)
+            elements = extractor.extract_document(self.config)
             processed_text = " \n".join([el.text for el in elements if el not in ("Footer", "Header")])
             section_name = (
                 self.data["metadata"]["structData"].get("name", "").strip()
@@ -385,11 +389,11 @@ class CustomJsonChunkerOne(DefaultJsonChunker):
             processed_text = f"{section_name}\n{processed_text}"
             output_data = {("", section_name): processed_text}
         elif "word" in mime_type:
-            filepath = f"raw_files/{self.data.get('name')}.docx"
+            filepath = f"{self.config.get('raw_files_path', 'raw_files')}/{self.data.get('name')}.docx"
             extractor = DefaultDocxExtractor(filepath)
             document = extractor.extract_document()
             raw_text = extractor.extract_text()
-            document_chunker = DefaultDocxChunker(document, raw_text)
+            document_chunker = DefaultDocxChunker(document, raw_text, self.config.get('docx_chunk_level', 1))
             output_data = document_chunker.chunk_the_document()
             additional_chunks = CustomKcDocxChunker(document, raw_text).chunk_the_document()
             if additional_chunks:
@@ -738,7 +742,8 @@ class JsonExtractor(BaseExtractor):
                 chunking = "b360_new"
             else:
                 chunking = "kc"
-            config_file_parameters = {"json_chunking": chunking}
+            config_file_parameters = copy.deepcopy(self.config_file_parameters)
+            config_file_parameters["json_chunking"] = chunking
             extractor = JsonExtractor(self.filepath, config_file_parameters)
             return extractor.process(output_dir)
 
@@ -782,7 +787,7 @@ class JsonExtractor(BaseExtractor):
 
             document_chunker = CHUNKER_MAP.get(
                 self.json_chunking, DefaultJsonChunker
-            )(self.filepath, self.data)
+            )(self.filepath, self.data, self.config_file_parameters)
             document_chunks = document_chunker.chunk_the_document()
             if not document_chunks:
                 return False
