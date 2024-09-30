@@ -288,6 +288,7 @@ def bq_project_details(project_id: str, user_id: str):
 
     return project_details
 
+
 def bq_all_projects(user_id: str):
     dataset_id = get_dataset_id()
 
@@ -325,12 +326,14 @@ def bq_all_projects(user_id: str):
 
     all_projects = []
     for row in results:
-        all_projects.append({
-            "project_id": row.project_id,
-            "project_name": row.project_name,
-            "created_on": row.created_on,
-            "updated_on": row.updated_on,
-        })
+        all_projects.append(
+            {
+                "project_id": row.project_id,
+                "project_name": row.project_name,
+                "created_on": row.created_on,
+                "updated_on": row.updated_on,
+            }
+        )
 
     return {"all_projects": all_projects}
 
@@ -418,11 +421,25 @@ def format_prediction_data(data):
     document_details = []
     for i, row in enumerate(data):
         try:
+            doc_i_details = ""
             doc_metadata = eval(row["post_filtered_documents_so_far_all_metadata"])
-            for x in doc_metadata:
-                x['page_content'] = x['page_content'][0:150] + '...'
-            document_details.append(f"Round #{i + 1} Document Details:\n" + doc_metadata)
-        except:
+            for j, x in enumerate(doc_metadata):
+                doc_i_details += f"Document #{j} \n"
+                doc_i_details += "Page content: "
+                doc_i_details += x["page_content"][0:150] + "...\n"
+                if "metadata" in x:
+                    doc_i_details += "Section name: " + x["metadata"]["section_name"] + "\n"
+                    if x["metadata"]["relevancy_reasoning"] != "The text could not be scored":
+                        doc_i_details += "Relevancy score: " + x["metadata"]["relevancy_score"] + "\n"
+                        doc_i_details += "Relevancy reasoning: " + x["metadata"]["relevancy_reasoning"] + "\n"
+                    if x["metadata"]["summary_reasoning"] != "The text could not be summarized":
+                        doc_i_details += "Summary score: " + x["metadata"]["summary_score"] + "\n"
+                        doc_i_details += "Summary reasoning: " + x["metadata"]["summary_reasoning"] + "\n"
+                        doc_i_details += "Summary: " + x["metadata"]["summary"] + "\n"
+                doc_i_details += "################## \n"
+            document_details.append(doc_i_details)
+        except Exception as e:
+            print(e)
             continue
 
     formatted_output["Document Details"] = "\n".join(document_details)
