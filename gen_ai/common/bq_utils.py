@@ -288,6 +288,52 @@ def bq_project_details(project_id: str, user_id: str):
 
     return project_details
 
+def bq_all_projects(user_id: str):
+    dataset_id = get_dataset_id()
+
+    query = f"""
+    WITH ProjectDetails AS (
+        -- Fetch project details from the projects table
+        SELECT 
+            p.project_id,
+            p.project_name,
+            p.created_on,
+            p.updated_on
+        FROM `{dataset_id}.projects` p
+        JOIN `{dataset_id}.project_user` pu 
+            ON p.project_id = pu.project_id
+        WHERE pu.user_id = @user_id
+    )
+    SELECT 
+        project_id, 
+        project_name, 
+        created_on, 
+        updated_on
+    FROM ProjectDetails
+    """
+
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("user_id", "STRING", user_id),
+        ]
+    )
+
+    client = bigquery.Client()
+    query_job = client.query(query, job_config=job_config)
+
+    results = list(query_job.result())
+
+    all_projects = []
+    for row in results:
+        all_projects.append({
+            "project_id": row.project_id,
+            "project_name": row.project_name,
+            "created_on": row.created_on,
+            "updated_on": row.updated_on,
+        })
+
+    return {"all_projects": all_projects}
+
 
 def bq_change_prompt(project_id: str, user_id: str, prompt_name: str, prompt_value: str):
     dataset_id = get_dataset_id()
