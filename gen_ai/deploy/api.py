@@ -7,7 +7,10 @@ import os
 import posixpath
 import requests
 
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, UploadFile, UploadFile, File, Form
+from fastapi.responses import JSONResponse
+from typing import List
+
 import google.auth
 
 from gen_ai.common.de_tools import (
@@ -58,7 +61,7 @@ async def get_list_documents(view_documents_request: ListDocumentsRequest) -> Li
     return ListDocumentsResponse(
         user_id=view_documents_request.user_id,
         project_name=view_documents_request.project_name,
-        documents=vait.list_documents(view_documents_request)
+        documents=vait.list_documents(view_documents_request),
     )
 
 
@@ -87,23 +90,18 @@ async def check_import_status(lro_id: str):
     return vait.get_import_status(lro_id)
 
 
-from fastapi import FastAPI, UploadFile, File, Form
-from fastapi.responses import JSONResponse
-from typing import List
-
-
 @app.post("/create_project/")
 async def create_project(project_name: str = Form(...), user_id: str = Form(...), files: List[UploadFile] = File(...)):
     project_id = bq_create_project(project_name, user_id)
 
     # uncomment when Uploading works
-    # vait = VaisImportTools(Container.config)
-    # process_files = vait.processor(user_id, files, project_name)
-    # if not process_files:
-    #     return JSONResponse(
-    #         status_code=500,
-    #         content={"detail": "Files were not processed properly", "code": 500},
-    #     )
+    vait = VaisImportTools(Container.config)
+    process_files = vait.processor(user_id, project_name, files)
+    if not process_files:
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Files were not processed properly", "code": 500},
+        )
 
     return {"project_id": project_id}
 
