@@ -249,8 +249,8 @@ def bq_project_details(project_id: str, user_id: str):
         -- Left join default_prompts based on vertical_id
         LEFT JOIN `{dataset_id}.default_prompts` dp 
             ON dp.vertical_id = p.vertical_id
-        WHERE p.project_id = '8e6b286d-950a-4945-8734-3aecab7e71b6'
-        AND pu.user_id = 'user_123'
+        WHERE p.project_id = '{project_id}'
+        AND pu.user_id = '{user_id}'
     )
     SELECT 
         project_name, 
