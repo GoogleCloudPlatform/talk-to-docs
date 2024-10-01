@@ -92,12 +92,12 @@ class DocumentsList(BaseModel):
     document_id: str
     document_uri: str
     document_filename: str
-    document_projectname: str
+    document_client_project_id: str
 
 
 class ListDocumentsResponse(BaseModel):
     user_id: str
-    project_name: str
+    client_project_id: str
     documents:list[DocumentsList]
 
 

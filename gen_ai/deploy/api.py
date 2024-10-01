@@ -132,7 +132,8 @@ async def create_project(project_name: str = Form(...), user_id: str = Form(...)
 @app.post("/project_details/")
 async def project_details(project_id: str = Form(...), user_id: str = Form(...)):
     project_details = bq_project_details(project_id, user_id)
-
+    vait = VaisImportTools(Container.config)
+    project_details["documents"] = vait.list_documents(DocumentsRequest(user_id=user_id, client_project_id=project_id))
     return project_details
 
 
