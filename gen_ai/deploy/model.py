@@ -187,6 +187,12 @@ class CreateProjectInput(BaseModel):
     local_documents: Optional[List[UploadFile]] = []
     external_documents: Optional[List[ExternalDocument]] = []
 
+class ChatOutput(BaseModel):
+    is_ai: bool
+    message: str
+    prediction_id: str
+    like_status: str | None
+    icon: str | None
 
 class LLMOutput(BaseModel):
     """
@@ -352,3 +358,4 @@ class Conversation:
     round_numder: int = field(default=1)
     session_id: str | None = field(default=None)
     member_info: list[PersonalizedData] | None = field(default=None)
+    prediction_id: str | None = field(default=None)

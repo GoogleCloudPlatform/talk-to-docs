@@ -27,6 +27,7 @@ from gen_ai.common.ioc_container import Container
 from gen_ai.deploy.model import (
     ItemInput,
     LLMOutput,
+    ChatOutput,
     ResetInput,
     ResetOutput,
     ResponseInput,
@@ -74,7 +75,9 @@ async def get_list_documents(view_documents_request: DocumentsRequest) -> ListDo
 
 
 @app.post("/index_files")
-async def upload_files(user_id: str, client_project_id: str, files: list[UploadFile] = File(...)) -> IndexDocumentsResponse:
+async def upload_files(
+    user_id: str, client_project_id: str, files: list[UploadFile] = File(...)
+) -> IndexDocumentsResponse:
     vait = VaisImportTools(Container.config)
     response = vait.processor(user_id, client_project_id, files)
     if response.status:
@@ -97,7 +100,7 @@ async def view_document(document_id: str) -> ViewExtractedDocumentResponse:
 # TODO: output class?
 @app.post("/import_status")
 async def check_import_status(check_request: DocumentsRequest) -> dict[str, list[str]]:
-    lros_bq_hashset = (bq_get_lro_entries(check_request.user_id, check_request.client_project_id))
+    lros_bq_hashset = bq_get_lro_entries(check_request.user_id, check_request.client_project_id)
     vait = VaisImportTools(Container.config)
     pending_operations = vait.get_import_works()
     lros_pending_list = []
@@ -105,9 +108,7 @@ async def check_import_status(check_request: DocumentsRequest) -> dict[str, list
         for operation in pending_operations:
             if operation in lros_bq_hashset:
                 lros_pending_list.append(operation)
-    response = {
-        "lros_pending_list": lros_pending_list
-    }
+    response = {"lros_pending_list": lros_pending_list}
     return response
 
 
@@ -158,6 +159,14 @@ async def debug_response(prediction_id: str = Form(...)):
     debug_info = bq_debug_response(prediction_id)
 
     return debug_info
+
+
+@app.post("/chat/")
+async def chat(message: str = Form(...), user_id: str = Form(...), client_project_id: str = Form(...)) -> dict:
+    conversation = respond_api(message, {"member_id": user_id, "client_project_id": client_project_id})
+    output = {"is_ai": True, "message": conversation.exchanges[-1].answer, "prediction_id": conversation.prediction_id}
+    print(output)
+    return output
 
 
 @app.post("/respond/", response_model=LLMOutput)

@@ -191,7 +191,7 @@ class VaisImportTools:
                 filename = basename[len(user_id)+1:]
             else:
                 filename = basename
-            struct_data = {"user_id": user_id, "client_project_id": client_project_id, "filename": filename}
+            struct_data = {"user_id": user_id, "client_project_id": client_project_id, "section_name": filename}
             file_extension = os.path.splitext(uri)[-1]
             doc_id = str(uuid.uuid4())
             mimetype = "application/vnd.openxmlformats-officedocument.wordprocessingml.document" if file_extension == ".docx" else "application/pdf"
@@ -268,7 +268,7 @@ class VaisImportTools:
         documents = [
             {
                 "document_id": doc.id, 
-                "document_filename": doc.struct_data.get("filename", ""),
+                "document_filename": doc.struct_data.get("section_name", ""),
                 "document_client_project_id": doc.struct_data.get("client_project_id", ""),
                 "document_uri": doc.content.uri,
             } 

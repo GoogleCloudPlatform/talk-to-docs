@@ -23,8 +23,8 @@ embeddings_model_name: textembedding-gecko@003
 vector_name: vais
 document_retriever: semantic #custom is for custom use case
 vais_staging_bucket: deploy-temp-bucket-misha # should be set if want to use existing bucket
-vais_data_store: temp-misha-deploy-data-store_1727467495097 # replace with data store ID to be created in Terraform and used by T2X
-vais_engine_id: test-misha-deploy-app_1727467577980 # replace with search engine ID to be created in Terraform and used by T2X
+vais_data_store: temp-misha-deploy-data-store-new_1727842011679 # replace with data store ID to be created in Terraform and used by T2X
+vais_engine_id: temp-misha-deploy-app-new_1727842085647 # replace with search engine ID to be created in Terraform and used by T2X
 vais_location: global # us/global
 vais_project_id: chertushkin-genai-sa # for import docs
 use_prev_and_next_pieces: 1 # integer between 0 and 3

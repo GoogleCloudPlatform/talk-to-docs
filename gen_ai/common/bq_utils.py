@@ -202,12 +202,7 @@ def log_system_status(session_id: str) -> str:
 
 
 def bq_add_lro_entry(user_id: str, client_project_id: str, lro_id: str) -> bool:
-    lro_data = {
-        "user_id": user_id,
-        "client_project_id": client_project_id,
-        "lro_id": lro_id,
-        "status": "INPROGRESS"
-    }
+    lro_data = {"user_id": user_id, "client_project_id": client_project_id, "lro_id": lro_id, "status": "INPROGRESS"}
 
     insert_status = insert_data_to_table("lros", lro_data)
     if not insert_status:
@@ -654,7 +649,7 @@ class BigQueryConverter:
             response_type = "final" if react_round_number == max_round else "intermediate"
 
             tokens_used = query_state.tokens_used if query_state.tokens_used is not None else 0
-            prediction_id = str(uuid.uuid4())
+            prediction_id = log_snapshot["prediction_id"]
 
             timestamp = datetime.datetime.now()
             confidence_score = query_state.confidence_score

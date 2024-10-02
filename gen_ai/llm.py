@@ -366,6 +366,8 @@ def respond(conversation: Conversation, member_info: dict) -> Conversation:
         conversation = resolve_and_enrich(conversation)
 
     conversation, log_snapshots = generate_response_react(conversation)
+    if log_snapshots:
+        conversation.prediction_id = log_snapshots[-1]['prediction_id']
 
     if statefullness_enabled:
         serialize_response(conversation)

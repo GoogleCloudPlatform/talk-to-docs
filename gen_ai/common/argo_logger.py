@@ -27,6 +27,7 @@ Dependencies:
 
 import copy
 from typing import Any
+import uuid
 
 from gen_ai.common.document_utils import convert_langchain_to_json
 
@@ -78,4 +79,5 @@ def create_log_snapshot(
     log_shapshot["post_filtered_docs"] = [convert_langchain_to_json(x) for x in post_filtered_docs]
     log_shapshot["additional_information_to_retrieve"] = additional_information_to_retrieve
     log_shapshot["time_taken"] = time_taken
+    log_shapshot['prediction_id'] = str(uuid.uuid4())
     return log_shapshot
