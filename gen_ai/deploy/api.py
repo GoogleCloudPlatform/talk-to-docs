@@ -62,6 +62,19 @@ Container.logger().info(f"ADC Project ID: {PROJECT}")
 app = FastAPI()
 
 items_db = {}
+from fastapi.middleware.cors import CORSMiddleware
+
+origins = [
+    "https://talk2docs.enterprise-europe.flutterflow.app",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.post("/documents")
@@ -114,20 +127,20 @@ async def check_import_status(check_request: DocumentsRequest) -> dict[str, list
 
 @app.post("/create_project/")
 async def create_project(project_name: str = Form(...), user_id: str = Form(...), files: List[UploadFile] = File(...)):
-    project_id = bq_create_project(project_name, user_id)
+    client_project_id = bq_create_project(project_name, user_id)
 
     # uncomment when Uploading works
     vait = VaisImportTools(Container.config)
-    process_files = vait.processor(user_id, project_name, files)
+    process_files = vait.processor(user_id, client_project_id, files)
     if process_files.status:
-        bq_add_lro_entry(user_id, project_id, process_files.lro_id)
+        bq_add_lro_entry(user_id, client_project_id, process_files.lro_id)
     if not process_files:
         return JSONResponse(
             status_code=500,
             content={"detail": "Files were not processed properly", "code": 500},
         )
 
-    return {"project_id": project_id}
+    return {"client_project_id": client_project_id}
 
 
 @app.post("/project_details/")
