@@ -248,6 +248,7 @@ def bq_get_previous_chat(user_id: str, client_project_id: str):
     results = query_job.result()
 
     chat_list = []
+    project_name = None
     for row in results:
         project_name = row.project_name
         chat_list.append(
