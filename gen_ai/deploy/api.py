@@ -51,6 +51,7 @@ from gen_ai.common.bq_utils import (
     bq_all_projects,
     bq_add_lro_entry,
     bq_get_lro_entries,
+    bq_get_previous_chat,
 )
 from starlette.responses import JSONResponse
 
@@ -172,6 +173,12 @@ async def debug_response(prediction_id: str = Form(...)):
     debug_info = bq_debug_response(prediction_id)
 
     return debug_info
+
+
+@app.post("/previous_chat/")
+async def chat(request: DocumentsRequest) -> dict:
+    response = bq_get_previous_chat(request.user_id, request.client_project_id)
+    return response
 
 
 @app.post("/chat/")

@@ -229,6 +229,44 @@ def bq_get_lro_entries(user_id: str, client_project_id: str) -> list[str]:
     return lro_data
 
 
+def bq_get_previous_chat(user_id: str, client_project_id: str):
+    dataset_id = get_dataset_id()
+
+    query = f"""
+    SELECT pred.prediction_id, pred.response, proj.project_name
+    FROM (SELECT prediction_id, response, client_project_id 
+            FROM `{dataset_id}.prediction`
+            WHERE user_id='{user_id}' 
+                AND client_project_id='{client_project_id}'
+            ORDER BY timestamp
+    ) as pred
+    LEFT JOIN `{dataset_id}.projects` as proj
+    ON pred.client_project_id=proj.project_id    
+    """
+    client = Container.logging_bq_client()
+    query_job = client.query(query)
+    results = query_job.result()
+
+    chat_list = []
+    for row in results:
+        project_name = row.project_name
+        chat_list.append(
+            {
+                "is_ai": True,
+                "message":row.response, 
+                "prediction_id":row.prediction_id,
+            }
+        )
+
+    response = {
+        "project_name": project_name,
+        "chat_list": chat_list
+    }
+
+    return response
+
+
+
 def bq_create_project(project_name: str, user_id: str):
     project_id = str(uuid.uuid4())
 
