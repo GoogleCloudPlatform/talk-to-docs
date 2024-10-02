@@ -267,27 +267,42 @@ def bq_project_details(project_id: str, user_id: str):
             p.project_name,
             p.created_on,
             p.updated_on,
-            dp.prompt_name AS prompt_name,
-            prompt_value AS prompt_value
+            dp.prompt_name AS default_prompt_name,
+            dp.prompt_value AS default_prompt_value,
+            dp.prompt_display_name AS default_prompt_display_name,
+            pr.prompt_name AS custom_prompt_name,
+            pr.prompt_value AS custom_prompt_value
         FROM `{dataset_id}.projects` p
-        -- Join project_user to ensure the user has access to this project
         JOIN `{dataset_id}.project_user` pu 
             ON p.project_id = pu.project_id
-        -- Left join prompts (project-specific prompts)
-        -- Left join default_prompts based on vertical_id
         LEFT JOIN `{dataset_id}.default_prompts` dp 
             ON dp.vertical_id = p.vertical_id
+        LEFT JOIN `{dataset_id}.prompts` pr
+            ON pr.project_id = p.project_id
+            AND pr.prompt_name = dp.prompt_name
         WHERE p.project_id = '{project_id}'
         AND pu.user_id = '{user_id}'
+    ),
+    FilteredPrompts AS (
+        SELECT
+            project_name,
+            created_on,
+            updated_on,
+            COALESCE(custom_prompt_name, default_prompt_name) AS prompt_name,
+            COALESCE(custom_prompt_value, default_prompt_value) AS prompt_value,
+            CASE 
+                WHEN custom_prompt_name IS NOT NULL THEN NULL
+                ELSE default_prompt_display_name
+            END AS prompt_display_name
+        FROM ProjectDetails
     )
     SELECT 
         project_name, 
         created_on, 
         updated_on,
-        ARRAY_AGG(STRUCT(prompt_name, prompt_value)) AS prompt_configuration
-    FROM ProjectDetails
+        ARRAY_AGG(STRUCT(prompt_name, prompt_value, prompt_display_name)) AS prompt_configuration
+    FROM FilteredPrompts
     GROUP BY project_name, created_on, updated_on
-
     """
 
     job_config = bigquery.QueryJobConfig(
@@ -309,7 +324,11 @@ def bq_project_details(project_id: str, user_id: str):
             "created_on": row.created_on,
             "updated_on": row.updated_on,
             "prompt_configuration": [
-                {"prompt_name": prompt["prompt_name"], "prompt_value": prompt["prompt_value"]}
+                {
+                    "prompt_name": prompt["prompt_name"],
+                    "prompt_value": prompt["prompt_value"],
+                    "prompt_display_name": prompt["prompt_display_name"],
+                }
                 for prompt in row.prompt_configuration
             ],
         }
