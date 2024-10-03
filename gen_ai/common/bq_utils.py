@@ -329,10 +329,7 @@ def bq_project_details(project_id: str, user_id: str):
             updated_on,
             COALESCE(custom_prompt_name, default_prompt_name) AS prompt_name,
             COALESCE(custom_prompt_value, default_prompt_value) AS prompt_value,
-            CASE 
-                WHEN custom_prompt_name IS NOT NULL THEN NULL
-                ELSE default_prompt_display_name
-            END AS prompt_display_name
+            default_prompt_display_name AS prompt_display_name
         FROM ProjectDetails
     )
     SELECT 
@@ -366,7 +363,7 @@ def bq_project_details(project_id: str, user_id: str):
                 {
                     "prompt_name": prompt["prompt_name"],
                     "prompt_value": prompt["prompt_value"],
-                    "prompt_display_name": prompt["prompt_display_name"],
+                    "prompt_display_name": prompt["prompt_display_name"]
                 }
                 for prompt in row.prompt_configuration
             ],
