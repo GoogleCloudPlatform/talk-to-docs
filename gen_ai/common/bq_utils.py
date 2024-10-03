@@ -386,6 +386,7 @@ def bq_all_projects(user_id: str):
         JOIN `{dataset_id}.project_user` pu 
             ON p.project_id = pu.project_id
         WHERE pu.user_id = @user_id
+        order by p.updated_on desc
     )
     SELECT 
         project_id, 
