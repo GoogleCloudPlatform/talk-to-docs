@@ -450,6 +450,7 @@ def bq_change_prompt(project_id: str, user_id: str, prompt_name: str, prompt_val
     except Exception as e:
         return {"status": False}
 
+    Container.prompt_manager().invalidate_cache(project_id)
     return {"status": True}
 
 

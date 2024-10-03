@@ -44,6 +44,7 @@ from gen_ai.common.retriever import perform_retrieve_round, retrieve_initial_doc
 from gen_ai.common.statefullness import resolve_and_enrich, serialize_response
 from gen_ai.custom_client_functions import fill_query_state_with_doc_attributes, generate_contexts_from_docs
 from gen_ai.deploy.model import Conversation, PersonalizedData, QueryState, transform_to_dictionary
+from gen_ai.user_context import UserContext, get_current_client_project_id
 
 
 def get_total_count(question: str, selected_context: str, previous_rounds: str, final_round_statement: str) -> str:
@@ -99,6 +100,7 @@ def perform_main_llm_call(
     round_number: int,
     final_round_statement: str,
     post_filtered_docs: list,
+    project_id: str
 ) -> tuple[dict[str, Any], float]:
     """Performs a main LLM (Large Language Model) call to generate an answer to a question.
 
@@ -120,56 +122,56 @@ def perform_main_llm_call(
             - The LLM output as a dictionary (with keys like "answer", "plan_and_summaries", etc.).
             - The confidence score of the answer.
     """
-    llm_start_time = default_timer()
+    with UserContext(project_id):
+        llm_start_time = default_timer()
+        output_raw = react_chain().run(
+            include_run_info=True,
+            return_only_outputs=False,
+            question=question,
+            previous_conversation=previous_context,
+            context=selected_context,
+            previous_rounds=previous_rounds,
+            round_number=round_number,
+            final_round_statement=final_round_statement,
+        )
 
-    output_raw = react_chain().run(
-        include_run_info=True,
-        return_only_outputs=False,
-        question=question,
-        previous_conversation=previous_context,
-        context=selected_context,
-        previous_rounds=previous_rounds,
-        round_number=round_number,
-        final_round_statement=final_round_statement,
-    )
-
-    llm_end_time = default_timer()
-    Container.logger().info(f"Generating main LLM answer took {llm_end_time - llm_start_time} seconds")
-    default_error_response = (
-        {
-            "answer": "I was not able to answer this question",
-            "plan_and_summaries": "",
-            "context_used": "[]",
-            "additional_information_to_retrieve": "",
-        },
-        0,
-        False
-    )
-    try:
-        output_raw = output_raw.replace("`json", "").replace("`", "")
-        output = json5.loads(output_raw)
-    except Exception as e:  # pylint: disable=W0718
-        Container.logger().info(msg="Crashed before correct chain")
-        Container.logger().info(msg=str(e))
-        return default_error_response
-
-    if "answer" not in output or (
-        len(post_filtered_docs) == 0 and not output.get("additional_information_to_retrieve", None)
-    ):
-        return default_error_response
-
-    if Container.config.get("separate_confidence_score", True):
-        confidence = get_confidence_score(question, output["answer"])
-    else:
+        llm_end_time = default_timer()
+        Container.logger().info(f"Generating main LLM answer took {llm_end_time - llm_start_time} seconds")
+        default_error_response = (
+            {
+                "answer": "I was not able to answer this question",
+                "plan_and_summaries": "",
+                "context_used": "[]",
+                "additional_information_to_retrieve": "",
+            },
+            0,
+            False,
+        )
         try:
-            confidence = output.get("confidence_score", 0)
-            confidence = int(confidence)
-        except ValueError:
-            print("failed to convert {confidence} to integer")
-            print(f"{confidence}")
-            confidence = 0
+            output_raw = output_raw.replace("`json", "").replace("`", "")
+            output = json5.loads(output_raw)
+        except Exception as e:  # pylint: disable=W0718
+            Container.logger().info(msg="Crashed before correct chain")
+            Container.logger().info(msg=str(e))
+            return default_error_response
 
-    return output, confidence, True  # return output and confidence
+        if "answer" not in output or (
+            len(post_filtered_docs) == 0 and not output.get("additional_information_to_retrieve", None)
+        ):
+            return default_error_response
+
+        if Container.config.get("separate_confidence_score", True):
+            confidence = get_confidence_score(question, output["answer"])
+        else:
+            try:
+                confidence = output.get("confidence_score", 0)
+                confidence = int(confidence)
+            except ValueError:
+                print("failed to convert {confidence} to integer")
+                print(f"{confidence}")
+                confidence = 0
+
+        return output, confidence, True  # return output and confidence
 
 
 @inject
@@ -263,6 +265,7 @@ def generate_response_react(conversation: Conversation) -> tuple[Conversation, l
             final_round_statement = config.get("final_round_statement", "")
 
         round_outputs = []
+        project_id = get_current_client_project_id()
         for selected_context in contexts:
             output, confidence, _ = perform_main_llm_call(
                 react_chain,
@@ -273,6 +276,7 @@ def generate_response_react(conversation: Conversation) -> tuple[Conversation, l
                 round_number,
                 final_round_statement,
                 post_filtered_docs,
+                project_id
             )
             round_outputs.append((output, confidence))
 
@@ -365,9 +369,13 @@ def respond(conversation: Conversation, member_info: dict) -> Conversation:
             raise ValueError("Member id is not provided for Stateful API and Multi-Turn")
         conversation = resolve_and_enrich(conversation)
 
+    client_project_id = get_current_client_project_id()
+    if client_project_id is None:
+        Container.logger().warning("No user context set. Using default prompts.")
+
     conversation, log_snapshots = generate_response_react(conversation)
     if log_snapshots:
-        conversation.prediction_id = log_snapshots[-1]['prediction_id']
+        conversation.prediction_id = log_snapshots[-1]["prediction_id"]
 
     if statefullness_enabled:
         serialize_response(conversation)
@@ -397,13 +405,17 @@ def respond_api(question: str, member_context_full: PersonalizedData | dict[str,
     """
     if isinstance(member_context_full, PersonalizedData):
         member_context_full = transform_to_dictionary(member_context_full)
-    query_state = QueryState(question=question, all_sections_needed=[])
-    query_state.original_question = (
-        Container.original_question
-        if (hasattr(Container, "original_question") and Container.original_question is not None)
-        else None
-    )
-    conversation = Conversation(exchanges=[query_state])
-    conversation = respond(conversation, member_context_full)
-    return conversation
 
+    client_project_id = member_context_full.get("client_project_id")
+
+    with UserContext(client_project_id):
+        query_state = QueryState(question=question, all_sections_needed=[])
+        query_state.original_question = (
+            Container.original_question
+            if (hasattr(Container, "original_question") and Container.original_question is not None)
+            else None
+        )
+        conversation = Conversation(exchanges=[query_state])
+        conversation = respond(conversation, member_context_full)
+
+    return conversation

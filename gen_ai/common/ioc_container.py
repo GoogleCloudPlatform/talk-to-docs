@@ -48,6 +48,97 @@ from gen_ai.common.vector_provider import VectorStrategy, VectorStrategyProvider
 
 LLM_YAML_FILE = "gen_ai/llm.yaml"
 
+from gen_ai.user_context import get_current_client_project_id
+
+class PromptManager:
+    def __init__(self):
+        self.prompts = {}
+
+    def get_prompt(self, prompt_name: str) -> str:
+        client_project_id = get_current_client_project_id()
+        if client_project_id is None:
+            return None
+        if client_project_id not in self.prompts:
+            self.prompts[client_project_id] = self._load_prompts(client_project_id)
+        return self.prompts[client_project_id].get(prompt_name, "")
+
+    def _load_prompts(self, user_id: str) -> dict:
+        return bq_get_prompts(user_id)
+    
+    def invalidate_cache(self, client_project_id):
+        if client_project_id in self.prompts:
+            del self.prompts[client_project_id]
+
+
+def get_dataset_id() -> str:
+    project_id = common.load_yaml(LLM_YAML_FILE).get("bq_project_id")
+    dataset_name = common.load_yaml(LLM_YAML_FILE)["dataset_name"]
+    if not project_id:
+        _, project_id = google.auth.default()
+    return f"{project_id}.{dataset_name}"
+
+
+def bq_get_prompts(project_id: str):
+    dataset_id = get_dataset_id()
+
+    query = f"""
+    WITH ProjectDetails AS (
+        -- Fetch project details from the projects table
+        SELECT 
+            p.project_name,
+            p.created_on,
+            p.updated_on,
+            dp.prompt_name AS default_prompt_name,
+            dp.prompt_value AS default_prompt_value,
+            dp.prompt_display_name AS default_prompt_display_name,
+            pr.prompt_name AS custom_prompt_name,
+            pr.prompt_value AS custom_prompt_value
+        FROM `{dataset_id}.projects` p
+        JOIN `{dataset_id}.project_user` pu 
+            ON p.project_id = pu.project_id
+        LEFT JOIN `{dataset_id}.default_prompts` dp 
+            ON dp.vertical_id = p.vertical_id
+        LEFT JOIN `{dataset_id}.prompts` pr
+            ON pr.project_id = p.project_id
+            AND pr.prompt_name = dp.prompt_name
+        WHERE p.project_id = '{project_id}'
+    ),
+    FilteredPrompts AS (
+        SELECT
+            project_name,
+            created_on,
+            updated_on,
+            COALESCE(custom_prompt_name, default_prompt_name) AS prompt_name,
+            COALESCE(custom_prompt_value, default_prompt_value) AS prompt_value,
+            default_prompt_display_name AS prompt_display_name
+        FROM ProjectDetails
+    )
+    SELECT 
+        project_name, 
+        created_on, 
+        updated_on,
+        ARRAY_AGG(STRUCT(prompt_name, prompt_value, prompt_display_name)) AS prompt_configuration
+    FROM FilteredPrompts
+    GROUP BY project_name, created_on, updated_on
+    """
+
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("project_id", "STRING", project_id),
+        ]
+    )
+
+    client = Container.logging_bq_client()
+    query_job = client.query(query, job_config=job_config)
+
+    results = list(query_job.result())
+
+    project_details = None
+    for row in results:
+        project_details = {prompt["prompt_name"]: prompt["prompt_value"] for prompt in row.prompt_configuration }
+
+    return project_details
+
 
 def create_bq_client(project_id: str | None = None) -> bigquery.Client | None:
     """Creates a BigQuery client.
@@ -90,7 +181,9 @@ def provide_chain(template_name: str, input_variables: list[str], output_key: st
         Chain: An instance of LLMChain wrapped with exponential retry logic configured to use specified template.
     """
     llm = llm or Container.llm
-    template = Container.config[template_name].strip()
+    template = Container.prompt_manager().get_prompt(template_name)
+    if not template:
+        template = Container.config[template_name].strip()
     answer_template = PromptTemplate(input_variables=input_variables, template=template)
     chain = LLMChain(
         llm=llm,
@@ -206,6 +299,8 @@ class Container(containers.DeclarativeContainer):
     llm = common.get_or_create_model(config["model_name"])
     scoring_llm = common.get_or_create_model(config["scoring_model_name"])
 
+    prompt_manager = providers.Singleton(PromptManager)
+
     _input_variables_react = [
         "question",
         "previous_conversation",
@@ -214,30 +309,30 @@ class Container(containers.DeclarativeContainer):
         "round_number",
         "final_round_statement",
     ]
-    react_chain = providers.Singleton(provide_chain, "react_chain_prompt", _input_variables_react, "text")
-    json_corrector_chain = providers.Singleton(provide_chain, "json_corrector_prompt", ["json"], "text")
-    aspect_based_summary_chain = providers.Singleton(
+    react_chain = providers.Factory(provide_chain, "react_chain_prompt", _input_variables_react, "text")
+    json_corrector_chain = providers.Factory(provide_chain, "json_corrector_prompt", ["json"], "text")
+    aspect_based_summary_chain = providers.Factory(
         provide_chain, "aspect_based_summary_prompt", ["retrieved_doc", "question"], "text"
     )
-    answer_scoring_chain = providers.Singleton(
+    answer_scoring_chain = providers.Factory(
         provide_chain, "answer_scoring_prompt", ["question", "answer"], "text", scoring_llm
     )
-    retriever_scoring_chain = providers.Singleton(
+    retriever_scoring_chain = providers.Factory(
         provide_chain, "retriever_scoring_prompt", ["retrieved_doc", "question"], "text", scoring_llm
     )
-    similar_questions_chain = providers.Singleton(
+    similar_questions_chain = providers.Factory(
         provide_chain, "similar_questions_prompt", ["question", "similar_questions_number"], "similar_questions"
     )
 
-    enhance_question_chain = providers.Singleton(
+    enhance_question_chain = providers.Factory(
         provide_chain, "enhanced_prompt", ["question", "member_context"], "text"
     )
 
-    string_matcher_chain = providers.Singleton(
+    string_matcher_chain = providers.Factory(
         provide_chain, "substring_matching_prompt", ["left_string", "right_string"], "text", scoring_llm
     )
 
-    golden_answer_scoring_chain = providers.Singleton(
+    golden_answer_scoring_chain = providers.Factory(
         provide_chain,
         "golden_answer_scoring_prompt",
         ["question", "actual_answer", "expected_answer"],
@@ -245,7 +340,7 @@ class Container(containers.DeclarativeContainer):
         scoring_llm,
     )
 
-    previous_conversation_relevancy_chain = providers.Singleton(
+    previous_conversation_relevancy_chain = providers.Factory(
         provide_chain,
         "previous_conversation_scoring_prompt",
         ["previous_question", "previous_answer", "previous_additional_information_to_retrieve", "question"],

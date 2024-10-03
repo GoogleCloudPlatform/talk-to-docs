@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 from typing import List
 
 import google.auth
+from gen_ai.user_context import UserContext
 
 from gen_ai.common.de_tools import (
     create_metadata_jsonl,
@@ -183,7 +184,8 @@ async def chat(request: DocumentsRequest) -> dict:
 
 @app.post("/chat/")
 async def chat(message: str = Form(...), user_id: str = Form(...), client_project_id: str = Form(...)) -> dict:
-    conversation = respond_api(message, {"member_id": user_id, "client_project_id": client_project_id})
+    with UserContext(client_project_id):
+        conversation = respond_api(message, {"member_id": user_id, "client_project_id": client_project_id})
     output = {"is_ai": True, "message": conversation.exchanges[-1].answer, "prediction_id": conversation.prediction_id}
     print(output)
     return output

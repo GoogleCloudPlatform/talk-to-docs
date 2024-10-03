@@ -48,7 +48,7 @@ from func_timeout import func_timeout, FunctionTimedOut
 from google.api_core.exceptions import GoogleAPICallError, InternalServerError
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable, Any
-
+from gen_ai.user_context import current_client_project_id
 
 def retry_with_exponential_backoff(max_retries=15, initial_delay=2, backoff_factor=2):
     """
@@ -146,8 +146,15 @@ def concurrent_best_reduce(num_calls):
                 Tuple[Any, float]: The best result from the concurrent executions (result, score).
             """
             results: list[tuple[Any, float, bool]] = []
+            client_project_id = current_client_project_id.get(None)
+
+            def run_with_context():
+                if client_project_id is not None:
+                    current_client_project_id.set(client_project_id)
+                return func(*args, **kwargs)
+            
             with ThreadPoolExecutor(max_workers=num_calls) as executor:
-                futures = [executor.submit(func, *args, **kwargs) for _ in range(num_calls)]
+                futures = [executor.submit(run_with_context) for _ in range(num_calls)]
                 for future in as_completed(futures):
                     try:
                         result = future.result()
