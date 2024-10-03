@@ -39,6 +39,7 @@ locals {
         { name = "plan_and_summaries", type = "STRING", mode = "REQUIRED" },
         { name = "original_question", type = "STRING", mode = "NULLABLE" },
         { name = "client_project_id", type = "STRING", mode = "NULLABLE" },
+        { name = "response_id", type = "STRING", mode = "NULLABLE" },
       ]
     },
     "experiment" = {

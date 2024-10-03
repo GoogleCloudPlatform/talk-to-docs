@@ -170,14 +170,14 @@ async def change_prompt(
 
 
 @app.post("/debug_response/")
-async def debug_response(prediction_id: str = Form(...)):
-    debug_info = bq_debug_response(prediction_id)
+async def debug_response(response_id: str = Form(...)):
+    debug_info = bq_debug_response(response_id)
 
     return debug_info
 
 
 @app.post("/previous_chat/")
-async def chat(request: DocumentsRequest) -> dict:
+async def previous_chat(request: DocumentsRequest) -> dict:
     response = bq_get_previous_chat(request.user_id, request.client_project_id)
     return response
 
@@ -186,7 +186,7 @@ async def chat(request: DocumentsRequest) -> dict:
 async def chat(message: str = Form(...), user_id: str = Form(...), client_project_id: str = Form(...)) -> dict:
     with UserContext(client_project_id):
         conversation = respond_api(message, {"member_id": user_id, "client_project_id": client_project_id})
-    output = {"is_ai": True, "message": conversation.exchanges[-1].answer, "prediction_id": conversation.prediction_id}
+    output = {"is_ai": True, "message": conversation.exchanges[-1].answer, "response_id": conversation.response_id}
     print(output)
     return output
 

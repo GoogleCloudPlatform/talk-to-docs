@@ -522,7 +522,7 @@ class VertexAISearchVectorStore(VectorStore):
                 doc.metadata = struct_data_dict
                 docs.append((doc, score))
             except Exception as e:  # pylint: disable=broad-exception-caught
-                print("Exception happened on parsing:", item.document.struct_data["data_source"])
+                print("Exception happened on parsing:", item.document.struct_data)
                 print(e)
                 continue
 

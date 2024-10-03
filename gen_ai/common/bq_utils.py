@@ -233,8 +233,8 @@ def bq_get_previous_chat(user_id: str, client_project_id: str):
     dataset_id = get_dataset_id()
 
     query = f"""
-    SELECT pred.prediction_id, pred.response, proj.project_name
-    FROM (SELECT prediction_id, response, client_project_id 
+    SELECT pred.response_id, pred.response, proj.project_name
+    FROM (SELECT response_id, response, client_project_id 
             FROM `{dataset_id}.prediction`
             WHERE client_project_id='{client_project_id}'
             ORDER BY timestamp
@@ -254,7 +254,7 @@ def bq_get_previous_chat(user_id: str, client_project_id: str):
             {
                 "is_ai": True,
                 "message":row.response, 
-                "prediction_id":row.prediction_id,
+                "response_id":row.response_id,
             }
         )
 
@@ -453,17 +453,17 @@ def bq_change_prompt(project_id: str, user_id: str, prompt_name: str, prompt_val
     return {"status": True}
 
 
-def bq_debug_response(prediction_id: str):
+def bq_debug_response(response_id: str):
     dataset_id = get_dataset_id()
 
     query = f"""
     SELECT *
     FROM `{dataset_id}.prediction`
-    WHERE prediction_id = @prediction_id
+    WHERE response_id = @response_id
     """
 
     job_config = bigquery.QueryJobConfig(
-        query_parameters=[bigquery.ScalarQueryParameter("prediction_id", "STRING", prediction_id)]
+        query_parameters=[bigquery.ScalarQueryParameter("response_id", "STRING", response_id)]
     )
 
     client = Container.logging_bq_client()
@@ -489,20 +489,18 @@ def format_prediction_data(data):
         )
     formatted_output["Previous Context"] = "\n".join(previous_context)
 
-    round_information = []
+    formatted_output["Rounds Information"] = []
     for i, row in enumerate(data):
+        document_details = []
         round_info = {
+            "Round number": i,
             "Plan and Summaries": row["plan_and_summaries"],
             "Answer": row["response"],
             "Additional Info to Retrieve": row.get("additional_question", "N/A"),
             "Confidence Score": row["confidence_score"],
-            # "Context Used": row["retrieved_documents_so_far_content"],
+            "Context Used": row["context_used"],
         }
-        round_information.append(round_info)
-    formatted_output["Round Information"] = round_information
 
-    document_details = []
-    for i, row in enumerate(data):
         try:
             doc_i_details = ""
             doc_metadata = eval(row["post_filtered_documents_so_far_all_metadata"])
@@ -524,8 +522,9 @@ def format_prediction_data(data):
         except Exception as e:
             print(e)
             continue
+        round_info["Retrieved Document Details"] = document_details
 
-    formatted_output["Document Details"] = "\n".join(document_details)
+        formatted_output["Rounds Information"].append(round_info)
 
     time_taken = []
     for i, row in enumerate(data):
@@ -673,7 +672,9 @@ class BigQueryConverter:
             "additional_question": [],
             "plan_and_summaries": [],
             "original_question": [],
-            "client_project_id": []
+            "client_project_id": [],
+            "response_id": [],
+            "context_used": []
         }
         max_round = len(log_snapshots) - 1
         system_state_id = Container.system_state_id or log_system_status(session_id)
@@ -703,9 +704,10 @@ class BigQueryConverter:
             time_taken_retrieval = 0
             time_taken_llm = 0
             response_type = "final" if react_round_number == max_round else "intermediate"
-
             tokens_used = query_state.tokens_used if query_state.tokens_used is not None else 0
             prediction_id = log_snapshot["prediction_id"]
+            response_id = log_snapshot["response_id"]
+            context_used = log_snapshot['context_used']
 
             timestamp = datetime.datetime.now()
             confidence_score = query_state.confidence_score
@@ -741,6 +743,8 @@ class BigQueryConverter:
             data["plan_and_summaries"].append(plan_and_summaries)
             data["original_question"].append(query_state.original_question)
             data["client_project_id"].append(client_project_id)
+            data["response_id"].append(response_id)
+            data["context_used"].append(context_used)
 
         df = pd.DataFrame(data)
         return df

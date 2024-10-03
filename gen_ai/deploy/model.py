@@ -359,3 +359,4 @@ class Conversation:
     session_id: str | None = field(default=None)
     member_info: list[PersonalizedData] | None = field(default=None)
     prediction_id: str | None = field(default=None)
+    response_id: str | None = field(default=None)

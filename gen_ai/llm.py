@@ -100,7 +100,7 @@ def perform_main_llm_call(
     round_number: int,
     final_round_statement: str,
     post_filtered_docs: list,
-    project_id: str
+    project_id: str,
 ) -> tuple[dict[str, Any], float]:
     """Performs a main LLM (Large Language Model) call to generate an answer to a question.
 
@@ -205,6 +205,7 @@ def generate_response_react(conversation: Conversation) -> tuple[Conversation, l
     query_state = conversation.exchanges[-1]
     question = query_state.question
 
+    response_id = str(uuid.uuid4())
     query_state.react_rounds = []
     log_snapshots = []
     round_number = len(query_state.react_rounds) + 1
@@ -276,7 +277,7 @@ def generate_response_react(conversation: Conversation) -> tuple[Conversation, l
                 round_number,
                 final_round_statement,
                 post_filtered_docs,
-                project_id
+                project_id,
             )
             round_outputs.append((output, confidence))
 
@@ -294,6 +295,7 @@ def generate_response_react(conversation: Conversation) -> tuple[Conversation, l
             "confidence_score": confidence,
             "context_used": output["context_used"],
             "additional_information_to_retrieve": output["additional_information_to_retrieve"],
+            "response_id": response_id,
         }
         query_state.react_rounds.append(react_snapshot)
         previous_rounds = json5.dumps(query_state.react_rounds, indent=4)
@@ -332,6 +334,7 @@ def generate_response_react(conversation: Conversation) -> tuple[Conversation, l
     for x in log_snapshots:
         x["post_filtered_docs_so_far"] = post_filtered_docs
 
+    conversation.response_id = response_id
     return conversation, log_snapshots
 
 
