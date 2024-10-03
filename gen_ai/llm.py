@@ -380,7 +380,7 @@ def respond(conversation: Conversation, member_info: dict) -> Conversation:
     if statefullness_enabled:
         serialize_response(conversation)
 
-    Container.logging_bq_executor().submit(load_data_to_bq, conversation, log_snapshots)
+    Container.logging_bq_executor().submit(load_data_to_bq, conversation, log_snapshots, client_project_id)
 
     return conversation
 

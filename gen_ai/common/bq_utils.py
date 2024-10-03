@@ -95,7 +95,7 @@ def create_table(
         print(f"Table {table_id} created.")
 
 
-def load_data_to_bq(conversation: Conversation, log_snapshots: list[dict[str, Any]]):
+def load_data_to_bq(conversation: Conversation, log_snapshots: list[dict[str, Any]], client_project_id):
     """Loads prediction data, question and exeriments information to BigQuery.
 
     This function prepares and loads relevant data from a conversation into BigQuery.
@@ -111,7 +111,7 @@ def load_data_to_bq(conversation: Conversation, log_snapshots: list[dict[str, An
     question = query_state.question
     log_question(question)
     df = BigQueryConverter.convert_query_state_to_prediction(
-        conversation.exchanges[-1], log_snapshots, conversation.session_id
+        conversation.exchanges[-1], log_snapshots, conversation.session_id, client_project_id
     )
     load_status = load_prediction_data_to_bq(df)
     if load_status:
@@ -236,8 +236,7 @@ def bq_get_previous_chat(user_id: str, client_project_id: str):
     SELECT pred.prediction_id, pred.response, proj.project_name
     FROM (SELECT prediction_id, response, client_project_id 
             FROM `{dataset_id}.prediction`
-            WHERE user_id='{user_id}' 
-                AND client_project_id='{client_project_id}'
+            WHERE client_project_id='{client_project_id}'
             ORDER BY timestamp
     ) as pred
     LEFT JOIN `{dataset_id}.projects` as proj
@@ -645,7 +644,7 @@ class BigQueryConverter:
 
     @staticmethod
     def convert_query_state_to_prediction(
-        query_state: QueryState, log_snapshots: list[dict], session_id: str
+        query_state: QueryState, log_snapshots: list[dict], session_id: str, client_project_id: str
     ) -> pd.DataFrame:
         data = {
             "user_id": [],
@@ -674,6 +673,7 @@ class BigQueryConverter:
             "additional_question": [],
             "plan_and_summaries": [],
             "original_question": [],
+            "client_project_id": []
         }
         max_round = len(log_snapshots) - 1
         system_state_id = Container.system_state_id or log_system_status(session_id)
@@ -740,6 +740,7 @@ class BigQueryConverter:
             data["additional_question"].append(additional_question)
             data["plan_and_summaries"].append(plan_and_summaries)
             data["original_question"].append(query_state.original_question)
+            data["client_project_id"].append(client_project_id)
 
         df = pd.DataFrame(data)
         return df
