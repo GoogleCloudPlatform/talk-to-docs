@@ -40,6 +40,7 @@ locals {
         { name = "original_question", type = "STRING", mode = "NULLABLE" },
         { name = "client_project_id", type = "STRING", mode = "NULLABLE" },
         { name = "response_id", type = "STRING", mode = "NULLABLE" },
+        { name = "context_used", type = "STRING", mode = "NULLABLE" },
       ]
     },
     "experiment" = {
