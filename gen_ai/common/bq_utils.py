@@ -233,8 +233,8 @@ def bq_get_previous_chat(user_id: str, client_project_id: str):
     dataset_id = get_dataset_id()
 
     query = f"""
-    SELECT pred.response_id, pred.response, proj.project_name
-    FROM (SELECT response_id, response, client_project_id 
+    SELECT pred.question, pred.response_id, pred.response, proj.project_name
+    FROM (SELECT question, response_id, response, client_project_id 
             FROM `{dataset_id}.prediction`
             WHERE client_project_id='{client_project_id}'
             ORDER BY timestamp
@@ -252,11 +252,28 @@ def bq_get_previous_chat(user_id: str, client_project_id: str):
         project_name = row.project_name
         chat_list.append(
             {
-                "is_ai": True,
-                "message":row.response, 
-                "response_id":row.response_id,
+                "is_ai": False,
+                "message":row.question, 
+                "prediction_id":"",
             }
         )
+        chat_list.append(
+            {
+                "is_ai": True,
+                "message":row.response, 
+                "prediction_id":row.response_id,
+            }
+        )
+    if project_name is None:
+        query = f"""
+        SELECT project_name
+        FROM `{dataset_id}.projects` 
+        WHERE project_id='{client_project_id}'  
+        """
+        query_job = client.query(query)
+        results = query_job.result()
+        for row in results:
+            project_name = row.project_name
 
     response = {
         "project_name": project_name,
@@ -264,7 +281,6 @@ def bq_get_previous_chat(user_id: str, client_project_id: str):
     }
 
     return response
-
 
 
 def bq_create_project(project_name: str, user_id: str):

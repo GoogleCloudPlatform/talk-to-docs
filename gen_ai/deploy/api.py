@@ -100,7 +100,7 @@ async def upload_files(
     return response
 
 
-@app.delete("/document")
+@app.post("/remove_documents")
 async def remove_documents(remove_documents_request: RemoveDocumentsRequest) -> RemoveDocumentsResponse:
     vait = VaisImportTools(Container.config)
     return vait.remove_multiple_documents(remove_documents_request)
