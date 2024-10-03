@@ -708,7 +708,7 @@ class BigQueryConverter:
             tokens_used = query_state.tokens_used if query_state.tokens_used is not None else 0
             prediction_id = log_snapshot["prediction_id"]
             response_id = log_snapshot["response_id"]
-            context_used = log_snapshot['context_used']
+            context_used = str(log_snapshot['context_used'])
 
             timestamp = datetime.datetime.now()
             confidence_score = query_state.confidence_score
