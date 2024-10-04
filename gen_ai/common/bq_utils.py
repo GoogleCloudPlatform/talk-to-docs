@@ -517,10 +517,13 @@ def format_prediction_data(data):
         formatted_output["question"] = ""
 
     final_response = None
+    confidence_score = None
     for row in data:
         if row.get("response_type") == "final":
             final_response = row["response"]
+            confidence_score = row["confidence_score"]
     formatted_output["final_response"] = final_response
+    formatted_output["confidence_score"] = confidence_score
 
     formatted_output["rounds_information"] = []
     for i, row in enumerate(data):
@@ -532,26 +535,28 @@ def format_prediction_data(data):
             "additional_info_to_retrieve": row.get("additional_question", "N/A"),
             "confidence_score": row["confidence_score"],
             "context_used": row["context_used"],
+            "time_taken": row["time_taken_total"]
         }
 
         try:
-            doc_i_details = ""
+            doc_i_details = []
             doc_metadata = eval(row["post_filtered_documents_so_far_all_metadata"])
             for j, x in enumerate(doc_metadata):
-                doc_i_details += f"Document #{j} \n"
-                doc_i_details += "Page content: "
-                doc_i_details += x["page_content"][0:150] + "...\n"
+                # doc_i_details += f"Document #{j} \n"
+                # doc_i_details += "Page content: "
+                # doc_i_details += x["page_content"][0:150] + "...\n"
                 if "metadata" in x:
-                    doc_i_details += "Section name: " + x["metadata"]["section_name"] + "\n"
-                    if x["metadata"]["relevancy_reasoning"] != "The text could not be scored":
-                        doc_i_details += "Relevancy score: " + x["metadata"]["relevancy_score"] + "\n"
-                        doc_i_details += "Relevancy reasoning: " + x["metadata"]["relevancy_reasoning"] + "\n"
-                    if x["metadata"]["summary_reasoning"] != "The text could not be summarized":
-                        doc_i_details += "Summary score: " + x["metadata"]["summary_score"] + "\n"
-                        doc_i_details += "Summary reasoning: " + x["metadata"]["summary_reasoning"] + "\n"
-                        doc_i_details += "Summary: " + x["metadata"]["summary"] + "\n"
-                doc_i_details += "################## \n"
-            document_details.append(doc_i_details)
+                    doc_i_details.append(x["metadata"]["section_name"])
+                #     doc_i_details += "Section name: " + x["metadata"]["section_name"] + "\n"
+                #     if x["metadata"]["relevancy_reasoning"] != "The text could not be scored":
+                #         doc_i_details += "Relevancy score: " + x["metadata"]["relevancy_score"] + "\n"
+                #         doc_i_details += "Relevancy reasoning: " + x["metadata"]["relevancy_reasoning"] + "\n"
+                #     if x["metadata"]["summary_reasoning"] != "The text could not be summarized":
+                #         doc_i_details += "Summary score: " + x["metadata"]["summary_score"] + "\n"
+                #         doc_i_details += "Summary reasoning: " + x["metadata"]["summary_reasoning"] + "\n"
+                #         doc_i_details += "Summary: " + x["metadata"]["summary"] + "\n"
+                # doc_i_details += "################## \n"
+            document_details+=doc_i_details
         except Exception as e:
             print(e)
             continue
