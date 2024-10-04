@@ -107,7 +107,9 @@ locals {
         { name = "vertical_id", type = "STRING", mode = "REQUIRED" },
         { name = "prompt_name", type = "STRING", mode = "REQUIRED" },
         { name = "prompt_display_name", type = "STRING", mode = "NULLABLE" },
-        { name = "prompt_value", type = "STRING", mode = "NULLABLE" }
+        { name = "prompt_value", type = "STRING", mode = "NULLABLE" },
+        { name = "prompt_order", type = "INTEGER", mode = "NULLABLE" }
+
       ]
     },
     "prompts" = {

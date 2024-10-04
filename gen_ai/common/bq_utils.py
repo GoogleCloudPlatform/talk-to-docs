@@ -234,9 +234,10 @@ def bq_get_previous_chat(user_id: str, client_project_id: str):
 
     query = f"""
     SELECT pred.question, pred.response_id, pred.response, proj.project_name
-    FROM (SELECT question, response_id, response, client_project_id 
+    FROM (SELECT question, response_id, response, client_project_id
             FROM `{dataset_id}.prediction`
             WHERE client_project_id='{client_project_id}'
+                    AND response_type='final'
             ORDER BY timestamp
     ) as pred
     LEFT JOIN `{dataset_id}.projects` as proj
@@ -324,6 +325,7 @@ def bq_project_details(project_id: str, user_id: str):
             dp.prompt_name AS default_prompt_name,
             dp.prompt_value AS default_prompt_value,
             dp.prompt_display_name AS default_prompt_display_name,
+            dp.prompt_order AS default_prompt_order,
             pr.prompt_name AS custom_prompt_name,
             pr.prompt_value AS custom_prompt_value
         FROM `{dataset_id}.projects` p
@@ -344,14 +346,17 @@ def bq_project_details(project_id: str, user_id: str):
             updated_on,
             COALESCE(custom_prompt_name, default_prompt_name) AS prompt_name,
             COALESCE(custom_prompt_value, default_prompt_value) AS prompt_value,
-            default_prompt_display_name AS prompt_display_name
+            default_prompt_display_name AS prompt_display_name,
+            default_prompt_order AS prompt_order
         FROM ProjectDetails
     )
     SELECT 
         project_name, 
         created_on, 
         updated_on,
-        ARRAY_AGG(STRUCT(prompt_name, prompt_value, prompt_display_name)) AS prompt_configuration
+        ARRAY_AGG(STRUCT(prompt_name, prompt_value, prompt_display_name) 
+                ORDER BY prompt_order
+        ) AS prompt_configuration
     FROM FilteredPrompts
     GROUP BY project_name, created_on, updated_on
     """
