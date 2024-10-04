@@ -3,6 +3,7 @@ This module defines the FastAPI endpoints for the Gen AI project, handling
 requests related to question answering, feedback, and conversational state resets.
 """
 
+import hashlib
 import os
 import posixpath
 import requests
@@ -79,13 +80,20 @@ app.add_middleware(
 )
 
 
+def hash_data(input):
+    return hashlib.sha512(input.encode("utf-8")).hexdigest()
+
 @app.post("/documents")
 async def get_list_documents(view_documents_request: DocumentsRequest) -> ListDocumentsResponse:
     vait = VaisImportTools(Container.config)
+    modified_request = DocumentsRequest(
+        user_id = hash_data(view_documents_request.user_id),
+        client_project_id = view_documents_request.client_project_id,
+    )
     return ListDocumentsResponse(
         user_id=view_documents_request.user_id,
         client_project_id=view_documents_request.client_project_id,
-        documents=vait.list_documents(view_documents_request),
+        documents=vait.list_documents(modified_request),
     )
 
 
@@ -93,8 +101,9 @@ async def get_list_documents(view_documents_request: DocumentsRequest) -> ListDo
 async def upload_files(
     user_id: str, client_project_id: str, files: list[UploadFile] = File(...)
 ) -> IndexDocumentsResponse:
+    hashed_user_id = hash_data(user_id)
     vait = VaisImportTools(Container.config)
-    response = vait.processor(user_id, client_project_id, files)
+    response = vait.processor(hashed_user_id, client_project_id, files)
     if response.status:
         bq_add_lro_entry(user_id, client_project_id, response.lro_id)
     return response
@@ -102,8 +111,12 @@ async def upload_files(
 
 @app.post("/remove_documents")
 async def remove_documents(remove_documents_request: RemoveDocumentsRequest) -> RemoveDocumentsResponse:
+    modified_request = RemoveDocumentsRequest(
+        user_id = hash_data(remove_documents_request.user_id),
+        document_ids = remove_documents_request.document_ids,
+    )
     vait = VaisImportTools(Container.config)
-    return vait.remove_multiple_documents(remove_documents_request)
+    return vait.remove_multiple_documents(modified_request)
 
 
 @app.get("/document/{document_id}")
@@ -112,10 +125,10 @@ async def view_document(document_id: str) -> ViewExtractedDocumentResponse:
     return vait.get_parsed_document(document_id)
 
 
-# TODO: output class?
 @app.post("/import_status")
 async def check_import_status(check_request: DocumentsRequest) -> dict[str, list[str]]:
-    lros_bq_hashset = bq_get_lro_entries(check_request.user_id, check_request.client_project_id)
+    hashed_user_id = hash_data(check_request.user_id)
+    lros_bq_hashset = bq_get_lro_entries(hashed_user_id, check_request.client_project_id)
     vait = VaisImportTools(Container.config)
     pending_operations = vait.get_import_works()
     lros_pending_list = []
@@ -129,13 +142,14 @@ async def check_import_status(check_request: DocumentsRequest) -> dict[str, list
 
 @app.post("/create_project/")
 async def create_project(project_name: str = Form(...), user_id: str = Form(...), files: List[UploadFile] = File(...)):
-    client_project_id = bq_create_project(project_name, user_id)
+    hashed_user_id = hash_data(user_id)
+    client_project_id = bq_create_project(project_name, hashed_user_id)
 
     # uncomment when Uploading works
     vait = VaisImportTools(Container.config)
-    process_files = vait.processor(user_id, client_project_id, files)
+    process_files = vait.processor(hashed_user_id, client_project_id, files)
     if process_files.status:
-        bq_add_lro_entry(user_id, client_project_id, process_files.lro_id)
+        bq_add_lro_entry(hashed_user_id, client_project_id, process_files.lro_id)
     if not process_files:
         return JSONResponse(
             status_code=500,
@@ -147,15 +161,17 @@ async def create_project(project_name: str = Form(...), user_id: str = Form(...)
 
 @app.post("/project_details/")
 async def project_details(project_id: str = Form(...), user_id: str = Form(...)):
-    project_details = bq_project_details(project_id, user_id)
+    hashed_user_id = hash_data(user_id)
+    project_details = bq_project_details(project_id, hashed_user_id)
     vait = VaisImportTools(Container.config)
-    project_details["documents"] = vait.list_documents(DocumentsRequest(user_id=user_id, client_project_id=project_id))
+    project_details["documents"] = vait.list_documents(DocumentsRequest(user_id=hashed_user_id, client_project_id=project_id))
     return project_details
 
 
 @app.post("/all_projects/")
 async def all_projects(user_id: str = Form(...)):
-    project_details = bq_all_projects(user_id)
+    hashed_user_id = hash_data(user_id)
+    project_details = bq_all_projects(hashed_user_id)
 
     return project_details
 
@@ -164,7 +180,8 @@ async def all_projects(user_id: str = Form(...)):
 async def change_prompt(
     project_id: str = Form(...), user_id: str = Form(...), prompt_name: str = Form(...), prompt_value: str = Form(...)
 ):
-    change_prompt = bq_change_prompt(project_id, user_id, prompt_name, prompt_value)
+    hashed_user_id = hash_data(user_id)
+    change_prompt = bq_change_prompt(project_id, hashed_user_id, prompt_name, prompt_value)
 
     return change_prompt
 
@@ -172,20 +189,21 @@ async def change_prompt(
 @app.post("/debug_response/")
 async def debug_response(response_id: str = Form(...)):
     debug_info = bq_debug_response(response_id)
-
     return debug_info
 
 
 @app.post("/previous_chat/")
 async def previous_chat(request: DocumentsRequest) -> dict:
-    response = bq_get_previous_chat(request.user_id, request.client_project_id)
+    hashed_user_id = hash_data(request.user_id)
+    response = bq_get_previous_chat(hashed_user_id, request.client_project_id)
     return response
 
 
 @app.post("/chat/")
 async def chat(message: str = Form(...), user_id: str = Form(...), client_project_id: str = Form(...)) -> dict:
+    hashed_user_id = hash_data(user_id)
     with UserContext(client_project_id):
-        conversation = respond_api(message, {"member_id": user_id, "client_project_id": client_project_id})
+        conversation = respond_api(message, {"member_id": hashed_user_id, "client_project_id": client_project_id})
     output = {"is_ai": True, "message": conversation.exchanges[-1].answer, "response_id": conversation.response_id}
     print(output)
     return output
