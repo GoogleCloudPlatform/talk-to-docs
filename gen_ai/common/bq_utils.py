@@ -559,10 +559,10 @@ def format_prediction_data(data):
 
         formatted_output["rounds_information"].append(round_info)
 
-    time_taken = []
+    time_taken = 0
     for i, row in enumerate(data):
-        time_taken.append(row['time_taken_total'])
-    formatted_output["time_taken"] = "\n".join(time_taken)
+        time_taken+=row['time_taken_total']
+    formatted_output["time_taken"] = str(time_taken)
 
     return formatted_output
 
