@@ -255,14 +255,14 @@ def bq_get_previous_chat(user_id: str, client_project_id: str):
             {
                 "is_ai": False,
                 "message":row.question, 
-                "prediction_id":"",
+                "response_id":"",
             }
         )
         chat_list.append(
             {
                 "is_ai": True,
                 "message":row.response, 
-                "prediction_id":row.response_id,
+                "response_id":row.response_id,
             }
         )
     if project_name is None:
