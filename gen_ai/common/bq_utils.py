@@ -509,18 +509,29 @@ def format_prediction_data(data):
             f"- Previous answer #{i} was: {row['response']}\n"
             f"- Previous additional information to retrieve #{i} was: {row.get('additional_question', 'N/A')}"
         )
-    formatted_output["Previous Context"] = "\n".join(previous_context)
+        question = row['question']
+    formatted_output["previous_context"] = "\n".join(previous_context)
+    if len(data) > 0:
+        formatted_output["question"] = data[0]["question"]
+    else:
+        formatted_output["question"] = ""
 
-    formatted_output["Rounds Information"] = []
+    final_response = None
+    for row in data:
+        if row.get("response_type") == "final":
+            final_response = row["response"]
+    formatted_output["final_response"] = final_response
+
+    formatted_output["rounds_information"] = []
     for i, row in enumerate(data):
         document_details = []
         round_info = {
-            "Round number": i,
-            "Plan and Summaries": row["plan_and_summaries"],
-            "Answer": row["response"],
-            "Additional Info to Retrieve": row.get("additional_question", "N/A"),
-            "Confidence Score": row["confidence_score"],
-            "Context Used": row["context_used"],
+            "round_number": i,
+            "plan_and_summaries": row["plan_and_summaries"],
+            "answer": row["response"],
+            "additional_info_to_retrieve": row.get("additional_question", "N/A"),
+            "confidence_score": row["confidence_score"],
+            "context_used": row["context_used"],
         }
 
         try:
@@ -544,19 +555,14 @@ def format_prediction_data(data):
         except Exception as e:
             print(e)
             continue
-        round_info["Retrieved Document Details"] = document_details
+        round_info["retrieved_document_details"] = document_details
 
-        formatted_output["Rounds Information"].append(round_info)
+        formatted_output["rounds_information"].append(round_info)
 
     time_taken = []
     for i, row in enumerate(data):
-        time_taken.append(
-            f"Round #{i}:\n"
-            f"Total time taken: {row['time_taken_total']}s\n"
-            f"Retrieval time taken: {row['time_taken_retrieval']}s\n"
-            f"LLM time taken: {row['time_taken_llm']}s\n"
-        )
-    formatted_output["Time Taken"] = "\n".join(time_taken)
+        time_taken.append(row['time_taken_total'])
+    formatted_output["time_taken"] = "\n".join(time_taken)
 
     return formatted_output
 
