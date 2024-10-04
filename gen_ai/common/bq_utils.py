@@ -535,7 +535,7 @@ def format_prediction_data(data):
             "additional_info_to_retrieve": row.get("additional_question", "N/A"),
             "confidence_score": row["confidence_score"],
             "context_used": row["context_used"],
-            "time_taken": row["time_taken_total"]
+            "time_taken": f"{row['time_taken_total']:.1f}"
         }
 
         try:
@@ -567,7 +567,7 @@ def format_prediction_data(data):
     time_taken = 0
     for i, row in enumerate(data):
         time_taken+=row['time_taken_total']
-    formatted_output["time_taken"] = str(time_taken)
+    formatted_output["time_taken"] = f"{time_taken:.1f}"
 
     return formatted_output
 
