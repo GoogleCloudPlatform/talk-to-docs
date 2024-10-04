@@ -84,7 +84,7 @@ async def get_list_documents(view_documents_request: DocumentsRequest) -> ListDo
     vait = VaisImportTools(Container.config)
     return ListDocumentsResponse(
         user_id=view_documents_request.user_id,
-        project_name=view_documents_request.client_project_id,
+        client_project_id=view_documents_request.client_project_id,
         documents=vait.list_documents(view_documents_request),
     )
 
