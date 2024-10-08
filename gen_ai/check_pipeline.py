@@ -228,7 +228,6 @@ def run_pipeline(
                 answer = run_single_prediction(
                     input_query,
                     # {"set_number": acis, "member_id": "q1e23", "session_id": session_id, "policy_number": "905531"},
-                    
                     {"member_id": "36s54h2p"},
                 )
                 Container.logger().info(msg=f"Answer: {answer}")
