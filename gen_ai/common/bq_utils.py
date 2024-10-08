@@ -291,8 +291,10 @@ def bq_get_previous_chat(user_id: str, client_project_id: str):
     questions_query_job = client.query(questions_query, job_config=questions_job_config)
 
     questions = list(questions_query_job.result())
-
-    response = {"project_name": project_name, "chat_list": chat_list, "questions": questions}
+    questions_ls = []
+    for question in questions:
+        questions_ls.append(question['question'])
+    response = {"project_name": project_name, "chat_list": chat_list, "questions": questions_ls}
 
     return response
 
