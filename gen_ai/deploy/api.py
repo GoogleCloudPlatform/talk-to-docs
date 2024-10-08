@@ -10,7 +10,7 @@ import requests
 
 from fastapi import FastAPI, File, UploadFile, UploadFile, File, Form
 from fastapi.responses import JSONResponse
-from typing import List
+from typing import List, Optional
 
 import google.auth
 from gen_ai.user_context import UserContext
@@ -141,9 +141,9 @@ async def check_import_status(check_request: DocumentsRequest) -> dict[str, list
 
 
 @app.post("/create_project/")
-async def create_project(project_name: str = Form(...), user_id: str = Form(...), files: List[UploadFile] = File(...)):
+async def create_project(project_name: str = Form(...), user_id: str = Form(...), questions: List[str] = Form(None), files: List[UploadFile] = File(...)):
     hashed_user_id = hash_data(user_id)
-    client_project_id = bq_create_project(project_name, hashed_user_id)
+    client_project_id = bq_create_project(project_name, hashed_user_id, questions)
 
     # uncomment when Uploading works
     vait = VaisImportTools(Container.config)

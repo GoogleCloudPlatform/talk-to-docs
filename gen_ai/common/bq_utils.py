@@ -254,15 +254,15 @@ def bq_get_previous_chat(user_id: str, client_project_id: str):
         chat_list.append(
             {
                 "is_ai": False,
-                "message":row.question, 
-                "response_id":"",
+                "message": row.question,
+                "response_id": "",
             }
         )
         chat_list.append(
             {
                 "is_ai": True,
-                "message":row.response, 
-                "response_id":row.response_id,
+                "message": row.response,
+                "response_id": row.response_id,
             }
         )
     if project_name is None:
@@ -276,15 +276,12 @@ def bq_get_previous_chat(user_id: str, client_project_id: str):
         for row in results:
             project_name = row.project_name
 
-    response = {
-        "project_name": project_name,
-        "chat_list": chat_list
-    }
+    response = {"project_name": project_name, "chat_list": chat_list}
 
     return response
 
 
-def bq_create_project(project_name: str, user_id: str):
+def bq_create_project(project_name: str, user_id: str, questions: list[str] | None):
     project_id = str(uuid.uuid4())
 
     timestamp = datetime.datetime.now().isoformat()
@@ -308,6 +305,18 @@ def bq_create_project(project_name: str, user_id: str):
     if not insert_status_project_user:
         print(f"Error while inserting project-user relationship for project {project_name}.")
         return None
+
+    if questions is not None:
+        if len(questions) == 1 and "," in questions[0]:
+            # handle strage case with Swagger for now:
+            questions = questions[0].split(",")  # this will crash if Swagger used and user had used comma
+        print(questions)
+        for question in questions:
+            project_question_data = {"id": str(uuid.uuid4()), "client_project_id": project_id, "question": question}
+            insert_status_question = insert_data_to_table("default_questions", project_question_data)
+            if not insert_status_question:
+                print(f"Error while inserting project default questions relationship for project {project_name}.")
+                return None
 
     return project_id
 
@@ -374,6 +383,23 @@ def bq_project_details(project_id: str, user_id: str):
     results = list(query_job.result())
 
     project_details = None
+
+    questions_query = f"""
+    SELECT 
+        question
+    FROM {dataset_id}.default_questions dq where dq.client_project_id='{project_id}'
+    """
+
+    questions_job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("project_id", "STRING", project_id),
+        ]
+    )
+
+    questions_query_job = client.query(questions_query, job_config=questions_job_config)
+
+    questions = list(questions_query_job.result())
+
     for row in results:
         project_details = {
             "project_name": row.project_name,
@@ -383,10 +409,11 @@ def bq_project_details(project_id: str, user_id: str):
                 {
                     "prompt_name": prompt["prompt_name"],
                     "prompt_value": prompt["prompt_value"],
-                    "prompt_display_name": prompt["prompt_display_name"]
+                    "prompt_display_name": prompt["prompt_display_name"],
                 }
                 for prompt in row.prompt_configuration
             ],
+            "questions": questions,
         }
 
     return project_details
@@ -509,7 +536,7 @@ def format_prediction_data(data):
             f"- Previous answer #{i} was: {row['response']}\n"
             f"- Previous additional information to retrieve #{i} was: {row.get('additional_question', 'N/A')}"
         )
-        question = row['question']
+        question = row["question"]
     formatted_output["previous_context"] = "\n".join(previous_context)
     if len(data) > 0:
         formatted_output["question"] = data[0]["question"]
@@ -535,7 +562,7 @@ def format_prediction_data(data):
             "additional_info_to_retrieve": row.get("additional_question", "N/A"),
             "confidence_score": row["confidence_score"],
             "context_used": row["context_used"],
-            "time_taken": f"{row['time_taken_total']:.1f}"
+            "time_taken": f"{row['time_taken_total']:.1f}",
         }
 
         try:
@@ -556,7 +583,7 @@ def format_prediction_data(data):
                 #         doc_i_details += "Summary reasoning: " + x["metadata"]["summary_reasoning"] + "\n"
                 #         doc_i_details += "Summary: " + x["metadata"]["summary"] + "\n"
                 # doc_i_details += "################## \n"
-            document_details+=doc_i_details
+            document_details += doc_i_details
         except Exception as e:
             print(e)
             continue
@@ -566,7 +593,7 @@ def format_prediction_data(data):
 
     time_taken = 0
     for i, row in enumerate(data):
-        time_taken+=row['time_taken_total']
+        time_taken += row["time_taken_total"]
     formatted_output["time_taken"] = f"{time_taken:.1f}"
 
     return formatted_output
@@ -707,7 +734,7 @@ class BigQueryConverter:
             "original_question": [],
             "client_project_id": [],
             "response_id": [],
-            "context_used": []
+            "context_used": [],
         }
         max_round = len(log_snapshots) - 1
         system_state_id = Container.system_state_id or log_system_status(session_id)
@@ -740,7 +767,7 @@ class BigQueryConverter:
             tokens_used = query_state.tokens_used if query_state.tokens_used is not None else 0
             prediction_id = log_snapshot["prediction_id"]
             response_id = log_snapshot["response_id"]
-            context_used = str(log_snapshot['context_used'])
+            context_used = str(log_snapshot["context_used"])
 
             timestamp = datetime.datetime.now()
             confidence_score = query_state.confidence_score

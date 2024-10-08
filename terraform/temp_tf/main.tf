@@ -130,6 +130,13 @@ locals {
         { name = "status", type = "STRING", mode = "REQUIRED" },
       ]
     }
+    "default_questions" = {
+      fields = [
+        { name = "id", type = "STRING", mode = "REQUIRED" },
+        { name = "client_project_id", type = "STRING", mode = "REQUIRED" },
+        { name = "question", type = "STRING", mode = "NULLABLE" },
+      ]
+    }
   }
 }
 provider "google" {
