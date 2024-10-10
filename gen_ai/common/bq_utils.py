@@ -293,7 +293,7 @@ def bq_get_previous_chat(user_id: str, client_project_id: str):
     questions = list(questions_query_job.result())
     questions_ls = []
     for question in questions:
-        questions_ls.append(question['question'])
+        questions_ls.append(question["question"])
     response = {"project_name": project_name, "chat_list": chat_list, "questions": questions_ls}
 
     return response
@@ -402,6 +402,25 @@ def bq_project_details(project_id: str, user_id: str):
 
     project_details = None
 
+    questions_query = f"""
+    SELECT 
+        question
+    FROM {dataset_id}.default_questions dq where dq.client_project_id='{project_id}'
+    """
+
+    questions_job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("project_id", "STRING", project_id),
+        ]
+    )
+
+    questions_query_job = client.query(questions_query, job_config=questions_job_config)
+
+    questions = list(questions_query_job.result())
+    questions_ls = []
+    for question in questions:
+        questions_ls.append(question["question"])
+
     for row in results:
         project_details = {
             "project_name": row.project_name,
@@ -415,6 +434,7 @@ def bq_project_details(project_id: str, user_id: str):
                 }
                 for prompt in row.prompt_configuration
             ],
+            "questions": questions_ls,
         }
 
     return project_details

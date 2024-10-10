@@ -78,6 +78,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# app.state.UPLOAD_MAX_FILESIZE = 1024 * 1024 * 100 
 
 
 def hash_data(input):
