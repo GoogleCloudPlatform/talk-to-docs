@@ -311,6 +311,7 @@ def bq_create_project(project_name: str, user_id: str, questions: list[str] | No
         "created_on": timestamp,
         "updated_on": timestamp,
         "vertical_id": medical_vertical_id,
+        "read_only": "0",
     }
 
     insert_status_project = insert_data_to_table("projects", project_data)
@@ -348,6 +349,7 @@ def bq_project_details(project_id: str, user_id: str):
         -- Fetch project details from the projects table
         SELECT 
             p.project_name,
+            p.read_only,
             p.created_on,
             p.updated_on,
             dp.prompt_name AS default_prompt_name,
@@ -370,6 +372,7 @@ def bq_project_details(project_id: str, user_id: str):
     FilteredPrompts AS (
         SELECT
             project_name,
+            read_only,
             created_on,
             updated_on,
             COALESCE(custom_prompt_name, default_prompt_name) AS prompt_name,
@@ -379,14 +382,15 @@ def bq_project_details(project_id: str, user_id: str):
         FROM ProjectDetails
     )
     SELECT 
-        project_name, 
+        project_name,
+        read_only,
         created_on, 
         updated_on,
         ARRAY_AGG(STRUCT(prompt_name, prompt_value, prompt_display_name) 
                 ORDER BY prompt_order
         ) AS prompt_configuration
     FROM FilteredPrompts
-    GROUP BY project_name, created_on, updated_on
+    GROUP BY project_name, read_only, created_on, updated_on
     """
 
     job_config = bigquery.QueryJobConfig(
@@ -425,6 +429,7 @@ def bq_project_details(project_id: str, user_id: str):
     for row in results:
         project_details = {
             "project_name": row.project_name,
+            "read_only": row.read_only,
             "created_on": row.created_on,
             "updated_on": row.updated_on,
             "prompt_configuration": [

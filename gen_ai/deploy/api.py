@@ -78,18 +78,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-# app.state.UPLOAD_MAX_FILESIZE = 1024 * 1024 * 100 
+# app.state.UPLOAD_MAX_FILESIZE = 1024 * 1024 * 100
 
 
 def hash_data(input):
     return hashlib.sha512(input.encode("utf-8")).hexdigest()
 
+
 @app.post("/documents")
 async def get_list_documents(view_documents_request: DocumentsRequest) -> ListDocumentsResponse:
     vait = VaisImportTools(Container.config)
     modified_request = DocumentsRequest(
-        user_id = hash_data(view_documents_request.user_id),
-        client_project_id = view_documents_request.client_project_id,
+        user_id=hash_data(view_documents_request.user_id),
+        client_project_id=view_documents_request.client_project_id,
     )
     return ListDocumentsResponse(
         user_id=view_documents_request.user_id,
@@ -113,8 +114,8 @@ async def upload_files(
 @app.post("/remove_documents")
 async def remove_documents(remove_documents_request: RemoveDocumentsRequest) -> RemoveDocumentsResponse:
     modified_request = RemoveDocumentsRequest(
-        user_id = hash_data(remove_documents_request.user_id),
-        document_ids = remove_documents_request.document_ids,
+        user_id=hash_data(remove_documents_request.user_id),
+        document_ids=remove_documents_request.document_ids,
     )
     vait = VaisImportTools(Container.config)
     return vait.remove_multiple_documents(modified_request)
@@ -142,7 +143,12 @@ async def check_import_status(check_request: DocumentsRequest) -> dict[str, list
 
 
 @app.post("/create_project/")
-async def create_project(project_name: str = Form(...), user_id: str = Form(...), questions: List[str] = Form(None), files: List[UploadFile] = File(...)):
+async def create_project(
+    project_name: str = Form(...),
+    user_id: str = Form(...),
+    questions: List[str] = Form(None),
+    files: List[UploadFile] = File(...),
+):
     hashed_user_id = hash_data(user_id)
     client_project_id = bq_create_project(project_name, hashed_user_id, questions)
 
@@ -163,9 +169,15 @@ async def create_project(project_name: str = Form(...), user_id: str = Form(...)
 @app.post("/project_details/")
 async def project_details(project_id: str = Form(...), user_id: str = Form(...)):
     hashed_user_id = hash_data(user_id)
+
+    if project_id == "3626e16a-c384-422f-a9b2-4a6f03055fc1":  # default generic project
+        hashed_user_id = hash_data("default_user")
+
     project_details = bq_project_details(project_id, hashed_user_id)
     vait = VaisImportTools(Container.config)
-    project_details["documents"] = vait.list_documents(DocumentsRequest(user_id=hashed_user_id, client_project_id=project_id))
+    project_details["documents"] = vait.list_documents(
+        DocumentsRequest(user_id=hashed_user_id, client_project_id=project_id)
+    )
     return project_details
 
 

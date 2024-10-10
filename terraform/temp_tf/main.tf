@@ -85,6 +85,7 @@ locals {
           { name = "created_on", type = "TIMESTAMP", mode = "REQUIRED" },
           { name = "updated_on", type = "TIMESTAMP", mode = "REQUIRED" },
           { name = "vertical_id", type = "STRING", mode = "REQUIRED" }
+          { name = "read_only", type = "STRING", mode = "NULLABLE" }
         ]
     },
     "project_user" = {
