@@ -456,7 +456,8 @@ def bq_all_projects(user_id: str):
             p.project_id,
             p.project_name,
             p.created_on,
-            p.updated_on
+            p.updated_on,
+            p.read_only
         FROM `{dataset_id}.projects` p
         JOIN `{dataset_id}.project_user` pu 
             ON p.project_id = pu.project_id
@@ -467,7 +468,8 @@ def bq_all_projects(user_id: str):
         project_id, 
         project_name, 
         created_on, 
-        updated_on
+        updated_on,
+        read_only
     FROM ProjectDetails
     """
 
@@ -490,6 +492,34 @@ def bq_all_projects(user_id: str):
                 "project_name": row.project_name,
                 "created_on": row.created_on,
                 "updated_on": row.updated_on,
+                "read_only": row.read_only,
+            }
+        )
+
+    default_query = f"""
+    SELECT 
+        p.project_id,
+        p.project_name,
+        p.created_on,
+        p.updated_on,
+        p.read_only
+    FROM `{dataset_id}.projects` p
+    where project_id='3626e16a-c384-422f-a9b2-4a6f03055fc1'
+    order by p.updated_on desc
+    """
+
+    default_job_config = bigquery.QueryJobConfig()
+    default_query_job = client.query(default_query, job_config=default_job_config)
+
+    default_results = list(default_query_job.result())
+    for row in default_results:
+        all_projects.append(
+            {
+                "project_id": row.project_id,
+                "project_name": row.project_name,
+                "created_on": row.created_on,
+                "updated_on": row.updated_on,
+                "read_only": row.read_only,
             }
         )
 

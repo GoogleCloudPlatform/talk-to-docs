@@ -212,6 +212,10 @@ async def debug_response(response_id: str = Form(...)):
 @app.post("/previous_chat/")
 async def previous_chat(request: DocumentsRequest) -> dict:
     hashed_user_id = hash_data(request.user_id)
+
+    if request.client_project_id == "3626e16a-c384-422f-a9b2-4a6f03055fc1":  # default generic project
+        hashed_user_id = hash_data("default_user")
+
     response = bq_get_previous_chat(hashed_user_id, request.client_project_id)
     return response
 
@@ -219,6 +223,10 @@ async def previous_chat(request: DocumentsRequest) -> dict:
 @app.post("/chat/")
 async def chat(message: str = Form(...), user_id: str = Form(...), client_project_id: str = Form(...)) -> dict:
     hashed_user_id = hash_data(user_id)
+
+    if client_project_id == "3626e16a-c384-422f-a9b2-4a6f03055fc1":  # default generic project
+        hashed_user_id = hash_data("default_user")
+
     with UserContext(client_project_id):
         conversation = respond_api(message, {"member_id": hashed_user_id, "client_project_id": client_project_id})
     output = {"is_ai": True, "message": conversation.exchanges[-1].answer, "response_id": conversation.response_id}
