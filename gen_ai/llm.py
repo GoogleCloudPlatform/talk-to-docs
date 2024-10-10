@@ -359,6 +359,8 @@ def respond(conversation: Conversation, member_info: dict) -> Conversation:
     conversation.member_info = member_info
     if conversation.member_info and "set_number" in conversation.member_info:
         conversation.member_info["set_number"] = conversation.member_info["set_number"].lower()
+    if conversation.member_info and "member_id" in conversation.member_info:
+        conversation.user = conversation.member_info["member_id"]
     if conversation.member_info and "session_id" in conversation.member_info:
         conversation.session_id = conversation.member_info["session_id"]
     else:

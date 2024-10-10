@@ -111,7 +111,7 @@ def load_data_to_bq(conversation: Conversation, log_snapshots: list[dict[str, An
     question = query_state.question
     log_question(question)
     df = BigQueryConverter.convert_query_state_to_prediction(
-        conversation.exchanges[-1], log_snapshots, conversation.session_id, client_project_id
+        conversation.exchanges[-1], log_snapshots, conversation.session_id, client_project_id, conversation.user
     )
     load_status = load_prediction_data_to_bq(df)
     if load_status:
@@ -237,6 +237,7 @@ def bq_get_previous_chat(user_id: str, client_project_id: str):
     FROM (SELECT question, response_id, response, client_project_id
             FROM `{dataset_id}.prediction`
             WHERE client_project_id='{client_project_id}'
+                    AND user_id='{user_id}'
                     AND response_type='final'
             ORDER BY timestamp
     ) as pred
@@ -724,7 +725,11 @@ class BigQueryConverter:
 
     @staticmethod
     def convert_query_state_to_prediction(
-        query_state: QueryState, log_snapshots: list[dict], session_id: str, client_project_id: str
+        query_state: QueryState,
+        log_snapshots: list[dict],
+        session_id: str,
+        client_project_id: str,
+        user_or_hash: str | None = None,
     ) -> pd.DataFrame:
         data = {
             "user_id": [],
@@ -797,7 +802,8 @@ class BigQueryConverter:
             additional_question = log_snapshot["additional_information_to_retrieve"]
             plan_and_summaries = str(log_snapshot["plan_and_summaries"])
 
-            data["user_id"].append(getpass.getuser())
+            user_or_hash = user_or_hash or getpass.getuser()
+            data["user_id"].append(user_or_hash)
             data["prediction_id"].append(prediction_id)
             data["timestamp"].append(timestamp)
             data["system_state_id"].append(system_state_id)
