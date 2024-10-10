@@ -31,3 +31,4 @@ redis
 tqdm
 uvicorn
 pylint
+hypercorn

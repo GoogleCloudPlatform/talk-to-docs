@@ -38,4 +38,5 @@ USER t2x
 EXPOSE 8080
 
 # CMD ["uvicorn", "gen_ai.deploy.api:app", "--reload", "--host", "0.0.0.0", "--port", "8080", "--limit-max-requests", "100"]
-CMD ["uvicorn", "gen_ai.deploy.api:app", "--reload", "--host", "0.0.0.0", "--port", "8080"]
+# CMD ["uvicorn", "gen_ai.deploy.api:app", "--reload", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["hypercorn", "gen_ai.deploy.api:app", "--reload", "--bind", "0.0.0.0:8080"]
