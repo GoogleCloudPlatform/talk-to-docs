@@ -623,28 +623,32 @@ def format_prediction_data(data):
         }
 
         try:
-            doc_i_details = []
+            doc_i_details = ""
+            doc_i_section_names = []
             doc_metadata = eval(row["post_filtered_documents_so_far_all_metadata"])
+            if isinstance(doc_metadata, dict): # check if we have just 1 doc
+                doc_metadata = [doc_metadata]
             for j, x in enumerate(doc_metadata):
-                # doc_i_details += f"Document #{j} \n"
-                # doc_i_details += "Page content: "
-                # doc_i_details += x["page_content"][0:150] + "...\n"
+                doc_i_details += f"Document #{j} \n"
+                doc_i_details += "Page content: "
+                doc_i_details += x["page_content"][0:150] + "...\n"
                 if "metadata" in x:
-                    doc_i_details.append(x["metadata"]["section_name"])
-                #     doc_i_details += "Section name: " + x["metadata"]["section_name"] + "\n"
-                #     if x["metadata"]["relevancy_reasoning"] != "The text could not be scored":
-                #         doc_i_details += "Relevancy score: " + x["metadata"]["relevancy_score"] + "\n"
-                #         doc_i_details += "Relevancy reasoning: " + x["metadata"]["relevancy_reasoning"] + "\n"
-                #     if x["metadata"]["summary_reasoning"] != "The text could not be summarized":
-                #         doc_i_details += "Summary score: " + x["metadata"]["summary_score"] + "\n"
-                #         doc_i_details += "Summary reasoning: " + x["metadata"]["summary_reasoning"] + "\n"
-                #         doc_i_details += "Summary: " + x["metadata"]["summary"] + "\n"
-                # doc_i_details += "################## \n"
-            document_details += doc_i_details
+                    doc_i_section_names.append(x["metadata"]["section_name"])
+                    doc_i_details += "Section name: " + x["metadata"]["section_name"] + "\n"
+                    if x["metadata"]["relevancy_reasoning"] != "The text could not be scored":
+                        doc_i_details += "Relevancy score: " + x["metadata"]["relevancy_score"] + "\n"
+                        doc_i_details += "Relevancy reasoning: " + x["metadata"]["relevancy_reasoning"] + "\n"
+                    if x["metadata"]["summary_reasoning"] != "The text could not be summarized":
+                        doc_i_details += "Summary score: " + x["metadata"]["summary_score"] + "\n"
+                        doc_i_details += "Summary reasoning: " + x["metadata"]["summary_reasoning"] + "\n"
+                        doc_i_details += "Summary: " + x["metadata"]["summary"] + "\n"
+                doc_i_details += "################## \n"
+
         except Exception as e:
             print(e)
             continue
-        round_info["retrieved_document_details"] = document_details
+        round_info["retrieved_document_details"] = doc_i_details
+        round_info["retrieved_document_names"] = doc_i_section_names
 
         formatted_output["rounds_information"].append(round_info)
 
