@@ -67,6 +67,19 @@ def save_query_state_to_redis(query_state: QueryState, personalized_data: dict[s
     Container.redis_db().set(key, query_state_json)
 
 
+def delete_query_state_from_redis(personalized_data: dict[str, str]) -> None:
+    """
+    Deletes a query state from Redis using a generated key.
+
+    Args:
+        personalized_data (dict[str, str]): The personalized data used to generate part of the key.
+
+    """
+    key = generate_query_state_key(personalized_data)
+
+    Container.redis_db().delete(key)
+
+
 def get_query_states_from_memorystore(personalized_info: PersonalizedData) -> List[QueryState]:
     """
     Retrieves a list of `QueryState` objects from Redis based on personalized info.

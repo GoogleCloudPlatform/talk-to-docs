@@ -44,6 +44,8 @@ from gen_ai.deploy.model import (
     ViewExtractedDocumentResponse,
     IndexDocumentsResponse,
 )
+from gen_ai.common.statefullness import SessionResolver
+from gen_ai.common.memorystore_utils import serialize_previous_conversation, delete_query_state_from_redis
 from gen_ai.llm import respond_api
 from gen_ai.extraction_pipeline.vais_import_tools import VaisImportTools
 from gen_ai.common.bq_utils import (
@@ -55,6 +57,7 @@ from gen_ai.common.bq_utils import (
     bq_add_lro_entry,
     bq_get_lro_entries,
     bq_get_previous_chat,
+    bq_clear_chat,
 )
 from starlette.responses import JSONResponse
 
@@ -153,7 +156,7 @@ async def create_project(
     hashed_user_id = hash_data(user_id)
     if questions is not None:
         json_questions = json.loads(questions)
-        questions = json_questions['questions']
+        questions = json_questions["questions"]
     client_project_id = bq_create_project(project_name, hashed_user_id, questions)
 
     # uncomment when Uploading works
@@ -205,8 +208,25 @@ async def change_prompt(
 
 @app.post("/debug_response/")
 async def debug_response(response_id: str = Form(...)):
-    debug_info = bq_debug_response(response_id)
+    debug_info, member_info = bq_debug_response(response_id)
+    resolver = SessionResolver(member_info)
+    previous_conversations = resolver.get_previous_conversations()
+    if len(previous_conversations) > 1:
+        debug_info["previous_context"] = serialize_previous_conversation(previous_conversations[1:])
+
     return debug_info
+
+
+@app.post("/clear_chat/")
+async def clear_chat(client_project_id: str = Form(...), user_id: str = Form(...)):
+    hashed_user_id = hash_data(user_id)
+    response = bq_clear_chat(client_project_id, hashed_user_id)
+    try:
+        delete_query_state_from_redis({"member_id": hashed_user_id})
+    except:
+        return {"status": False}
+
+    return response
 
 
 @app.post("/previous_chat/")
@@ -225,7 +245,7 @@ async def chat(message: str = Form(...), user_id: str = Form(...), client_projec
     hashed_user_id = hash_data(user_id)
 
     # if client_project_id == "3626e16a-c384-422f-a9b2-4a6f03055fc1":  # default generic project
-        # hashed_user_id = hash_data("default_user")
+    # hashed_user_id = hash_data("default_user")
 
     with UserContext(client_project_id):
         conversation = respond_api(message, {"member_id": hashed_user_id, "client_project_id": client_project_id})

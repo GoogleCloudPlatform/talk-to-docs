@@ -559,6 +559,31 @@ def bq_change_prompt(project_id: str, user_id: str, prompt_name: str, prompt_val
     return {"status": True}
 
 
+def bq_clear_chat(client_project_id: str, user_id: str):
+    dataset_id = get_dataset_id()
+
+    query = f"""
+    DELETE FROM `{dataset_id}.prediction` p
+    where p.client_project_id=@client_project_id and p.user_id=@user_id
+    """
+    client = Container.logging_bq_client()
+
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("client_project_id", "STRING", client_project_id),
+            bigquery.ScalarQueryParameter("user_id", "STRING", user_id),
+        ]
+    )
+
+    query_job = client.query(query, job_config=job_config)
+    try:
+        res = list(query_job.result())
+    except Exception as e:
+        return {"status": False}
+
+    return {"status": True}
+
+
 def bq_debug_response(response_id: str):
     dataset_id = get_dataset_id()
 
@@ -580,7 +605,8 @@ def bq_debug_response(response_id: str):
     prediction_data = [dict(row) for row in results]
 
     formatted_data = format_prediction_data(prediction_data)
-    return formatted_data
+    member_info = {"member_id": prediction_data[0]["user_id"]}
+    return formatted_data, member_info
 
 
 def format_prediction_data(data):
@@ -626,7 +652,7 @@ def format_prediction_data(data):
             doc_i_details = ""
             doc_i_section_names = []
             doc_metadata = eval(row["post_filtered_documents_so_far_all_metadata"])
-            if isinstance(doc_metadata, dict): # check if we have just 1 doc
+            if isinstance(doc_metadata, dict):  # check if we have just 1 doc
                 doc_metadata = [doc_metadata]
             for j, x in enumerate(doc_metadata):
                 doc_i_details += f"Document #{j} \n"
