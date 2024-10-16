@@ -280,7 +280,7 @@ def bq_get_previous_chat(user_id: str, client_project_id: str):
     questions_query = f"""
     SELECT 
         question
-    FROM {dataset_id}.default_questions dq where dq.client_project_id='{client_project_id}'
+    FROM `{dataset_id}.default_questions` dq where dq.client_project_id='{client_project_id}'
     """
 
     questions_job_config = bigquery.QueryJobConfig(
@@ -410,7 +410,7 @@ def bq_project_details(project_id: str, user_id: str):
     questions_query = f"""
     SELECT 
         question
-    FROM {dataset_id}.default_questions dq where dq.client_project_id='{project_id}'
+    FROM `{dataset_id}.default_questions` dq where dq.client_project_id='{project_id}'
     """
 
     questions_job_config = bigquery.QueryJobConfig(
