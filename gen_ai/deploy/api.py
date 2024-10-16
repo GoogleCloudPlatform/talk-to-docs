@@ -105,7 +105,7 @@ async def get_list_documents(view_documents_request: DocumentsRequest) -> ListDo
 
 @app.post("/index_files")
 async def upload_files(
-    user_id: str, client_project_id: str, files: list[UploadFile] = File(...)
+    user_id: str = Form(...), client_project_id: str = Form(...), files: list[UploadFile] = File(...)
 ) -> IndexDocumentsResponse:
     hashed_user_id = hash_data(user_id)
     vait = VaisImportTools(Container.config)
