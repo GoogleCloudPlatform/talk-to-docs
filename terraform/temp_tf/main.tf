@@ -120,7 +120,9 @@ locals {
         { name = "project_id", type = "STRING", mode = "REQUIRED" },
         { name = "prompt_name", type = "STRING", mode = "REQUIRED" },
         { name = "prompt_value", type = "STRING", mode = "NULLABLE" },
-        { name = "created_on", type = "TIMESTAMP", mode = "REQUIRED" }
+        { name = "created_on", type = "TIMESTAMP", mode = "REQUIRED" },
+        { name = "prompt_hint", type = "STRING", mode = "NULLABLE" },
+        { name = "prompt_order", type = "INTEGER", mode = "NULLABLE" },
       ]
     }
     "lros" = {

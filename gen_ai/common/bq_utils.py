@@ -355,6 +355,7 @@ def bq_project_details(project_id: str, user_id: str):
             dp.prompt_name AS default_prompt_name,
             dp.prompt_value AS default_prompt_value,
             dp.prompt_display_name AS default_prompt_display_name,
+            dp.prompt_hint AS default_prompt_hint,
             dp.prompt_order AS default_prompt_order,
             pr.prompt_name AS custom_prompt_name,
             pr.prompt_value AS custom_prompt_value
@@ -378,7 +379,8 @@ def bq_project_details(project_id: str, user_id: str):
             COALESCE(custom_prompt_name, default_prompt_name) AS prompt_name,
             COALESCE(custom_prompt_value, default_prompt_value) AS prompt_value,
             default_prompt_display_name AS prompt_display_name,
-            default_prompt_order AS prompt_order
+            default_prompt_order AS prompt_order,
+            default_prompt_hint AS prompt_hint
         FROM ProjectDetails
     )
     SELECT 
@@ -386,7 +388,7 @@ def bq_project_details(project_id: str, user_id: str):
         read_only,
         created_on, 
         updated_on,
-        ARRAY_AGG(STRUCT(prompt_name, prompt_value, prompt_display_name) 
+        ARRAY_AGG(STRUCT(prompt_name, prompt_value, prompt_display_name, prompt_hint) 
                 ORDER BY prompt_order
         ) AS prompt_configuration
     FROM FilteredPrompts
@@ -437,6 +439,7 @@ def bq_project_details(project_id: str, user_id: str):
                     "prompt_name": prompt["prompt_name"],
                     "prompt_value": prompt["prompt_value"],
                     "prompt_display_name": prompt["prompt_display_name"],
+                    "prompt_hint": prompt["prompt_hint"],
                 }
                 for prompt in row.prompt_configuration
             ],

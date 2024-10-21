@@ -321,7 +321,7 @@ def generate_response_react(conversation: Conversation) -> tuple[Conversation, l
         if not query_state.additional_information_to_retrieve:
             break
 
-        if confidence >= 5:
+        if confidence >= 95:
             break
 
     conversation.round_numder = round_number
