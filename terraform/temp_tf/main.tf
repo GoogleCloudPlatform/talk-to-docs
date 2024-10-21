@@ -109,8 +109,8 @@ locals {
         { name = "prompt_name", type = "STRING", mode = "REQUIRED" },
         { name = "prompt_display_name", type = "STRING", mode = "NULLABLE" },
         { name = "prompt_value", type = "STRING", mode = "NULLABLE" },
-        { name = "prompt_order", type = "INTEGER", mode = "NULLABLE" }
-
+        { name = "prompt_order", type = "INTEGER", mode = "NULLABLE" },
+        { name = "prompt_hint", type = "STRING", mode = "NULLABLE" },
       ]
     },
     "prompts" = {

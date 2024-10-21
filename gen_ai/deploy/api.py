@@ -154,6 +154,9 @@ async def create_project(
     files: List[UploadFile] = File(...),
 ):
     hashed_user_id = hash_data(user_id)
+    # if "questions" not in questions:
+    #     # artificially zero out questions field
+    #     questions = None
     if questions is not None:
         json_questions = json.loads(questions)
         questions = json_questions["questions"]
