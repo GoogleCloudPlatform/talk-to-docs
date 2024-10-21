@@ -36,7 +36,7 @@ max_context_size: 1025000
 max_rounds: 3
 similar_questions_number: 2
 use_full_documents: true
-use_relevancy_score: false
+use_relevancy_score: true
 retriever_score_threshold: 2
 max_number_of_docs_retrieved: 3
 use_mmr: false
