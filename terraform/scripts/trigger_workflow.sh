@@ -27,4 +27,4 @@ read dataset_name
 echo ""
 
 # Execute the workflow.
-gcloud workflows execute t2x-doc-ingestion-workflow --project=$PROJECT --location=$REGION --data="{\"dataset_name\":\"$dataset_name\"}" --impersonate-service-account=$TF_VAR_terraform_service_account
+gcloud workflows execute t2x-doc-ingestion-workflow --project=$PROJECT --location=$REGION --data="{\"dataset_name\":\"$dataset_name\"}" #--impersonate-service-account=$TF_VAR_terraform_service_account

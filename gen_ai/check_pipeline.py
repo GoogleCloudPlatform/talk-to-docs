@@ -17,6 +17,7 @@ Functions:
 Exceptions:
     None
 """
+import json
 import glob
 import os
 import uuid
@@ -202,22 +203,139 @@ def run_pipeline(
                 scores_df.to_csv(f"{output_path}/{session_id}_run.csv", index=None)
         elif mode == "step":
             start = default_timer()
-            question = (
-                "I would like to know the answer to a question from the following member. The member is a subscriber, "
-                "a 59 year old female without any OI (other insurance coverage). She was just diagnosed with ESRD "
-                "and is now eligible for Medicare. Which is her primary plan?"
-            )
+            question = [
+                'What should be done if the pharmacy submits a claim with clarification code and the claim still rejects?',
+                #'What is the section name that describes high-dose rejections such as opioid or morphine equivalent dose?',
+                #'What should be the response to a pharmacy calling about drug-drug interaction related hard rejects?',
+                #'What are the result codes that will override for "Benzo+Opiod Rejection"?',
+                #'Why do drugs have gender restrictions?',
+                #'What are gender restirictions?',
+                #'For what types of issues should a CSA contact pharamcist?',
+                #'How can I contact to update this document?',
+                #'When are the 30-day mailings sent out?',
+                #'When are the 60-day mailings sent out?',
+                #'When are the Formulary cycle schedules?',
+                #'What should the member do if I didn’t receive a letter about a change?',
+                #'When are Member Communications sent out?',
+                #'What are Member Communications?',
+                #'What happens if my medication requires Prior Authorization?',
+                #'What types of Prior Authorizations are there?',
+                #'What is Prior Authorization?',
+                #'How are Gender Restrictions determined?',
+                #'Why are there Gender Restrictions?',
+                #'What are Gender Restrictions?',
+                #'What can we do if the member  don’t agree with a decision about excluding my medication?',
+                #'Why do medications move to Non-Formulary?',
+                #'What does it mean when a medication is Non-Formulary?',
+                #'How can I find out which tier my medication falls into?',
+                #'What happens when a medication changes to a higher tier?',
+                #'Why might the price of the members medication change?',
+                #'What are tiers in the context of prescription drugs?',
+                #'Why or when does the PDL change?',
+                #'What is the purpose of the PDL?',
+                #'What happens when a medication changes tiers or moves to exclusions?',
+                #'How often is the PDL updated?',
+                #'What is the difference between the brand name and generic medications?',
+                #'What should I do if my doctor writes a brand name prescription?',
+                #'What does “Dispense as Written” mean?',
+                #'Where can I find Fertiliy Limits?',
+                #'Where can I find the accumulators',
+                #'What is the member responsibility during the deductible phase',
+                #'What is a deductible',
+                #'What is a benefit Maximum?',
+                #'Where can you tell if a medication can be covered under HCR',
+                #'What is an HCR claim?',
+                #'does the ammount paid by plan during coverage gap go towards Troop',
+                #'What are the accumulator anmmounts in 2024',
+                #'What is the Catastrophic Phase?',
+                #'What is the Coverage Gap?',
+                #'What is thie initial coverage phase?',
+                #'What is the deductible phase',
+                #'WGHat are the 4 phases of medicare',
+                #'What is a Non-Embedded plan type',
+                #'What is a n embeded plan?',
+                #'What is a crossover claim',
+                #'What is the members copay?',
+                #'What does the member pay while in their deductible?',
+                #'What are the four benefit levels or coverages phases for Medicare Part D plans?',
+                #'Can I enter an override if PPS codes do not work?',
+                #'Can I tell a pharmacy which PPS code(s) / code combination(s) are allowed by the plan?',
+                #'Are PPS codes the same as Submission Clarification Codes (SCC)?',
+                #'Can I tell a pharmacy to use any code that works?',
+                #'What do we do it The pharmacy is using PPS Codes, but the claim is still rejecting.',
+                #'What If The pharmacy doesn’t know how to use PPS codes?',
+                #'What are the possible Result Codes and what does each mean?',
+                #'What are the Professional Service codes and what does each mean?',
+                #'What are the optional Reason for Service codes and what does each mean?',
+                #'Can any PPS code be used to override a DUR reject?',
+                #'What is Result of Service Code?',
+                #'What is Professional Service Code?',
+                #'What is Reason for Service Code?',
+                #'What are the 3 parts of DUR/PPS codes?',
+                #'What does a pharmacist need to do in order to override a DUR soft reject?',
+                #'What combination of PPS codes will override a Benzo+Opioid Rejection',
+                #'What the is submission clarification code for Drug to Drug rejections?',
+                #'What the is submission clarification code for high dose?',
+                #'Can a soft High-Dose reject be overridden?',
+                #'What the is submission clarification code for a Therapeutic Duplication?',
+                #'Can you override a soft therapeutic duplication reject reason?',
+                #'Can a PA be done for a hard DDI reject?',
+                #'Can a pharmacist override a hard DDI?',
+                #'What do we do if a pharmacy calls about a hard DDI reject?',
+                #'Can you do an override for hard reject drug-drug interaction?',
+                #'How do we know what medication is causing the DDI DUR?',
+                #'What is a drug-drug interaction DUR reject?',
+                #'Is drug-drug interaction a hard or soft reject?',
+                #'What do I do if I see a Total APAP>4g reject message?',
+                #'What does Total APAP>4g mean',
+                #'What do you do if you get a high dose reject',
+                #'What will a Opioid high dose reject look like',
+                #'Can you override a hard reject high dose reason?',
+                #'what is a high dose reject',
+                #'Is high-dose a hard or soft reject?',
+                #'Does therapeutic duplication require a PA?',
+                #'What is therapeutic Duplication?',
+                #'Can you override a hard therapeutic duplication reject reason?',
+                #'Is Therapeutic Duplication a hard or soft reject?',
+                #'What do we need to document for a DUR reject?',
+                #'Do we enter an override for a DUR reject?',
+                #'What do we do if the claim still rejects after entering a clarification code?',
+                #'Can pharmacies fill more than a 30 day supply?',
+                #'Where can you find overrides available?',
+                #'What is the clarificaiton code for therapy change',
+                #'What is the Clarification code for lost prescription',
+                #'What is the Clarification code for Vacation supply',
+                #'What overrides can be used for Ingredient Duplication rejects',
+                #'What causes ingredient duplication DUR reject?',
+                #'Is Ingredient duplication a hard or soft reject?',
+                #'What is the difference between Hard and Soft rejects?',
+                #'What are some types of DUR reasons?',
+                #'Where do we see the Reject 88 details',
+                #'Can we bypass a Reject 88?',
+                #'What should a CSA contact a Consulting Pharmacist for?',
+                #'What is needed to release a DUR-PPS hold?',
+                #'What pharmacist can release a DUR-PPS hold?',
+                #'What is a DUR-PPS hold?',
+                #'Who can release a DUR-PPS hold?',
+                #'Are there different kinds of DUR rejects?',
+                #'What is a DUR reject?',
+            ]
             acis = "001acis"
-            for idx, input_query in enumerate([question]):
-                Container.original_question = question
+            qna = {}
+            for idx, input_query in enumerate(question):
+                # Container.original_question = question
                 Container.logger().info(msg=f"Asking question {idx} in document ")
                 Container.logger().info(msg=f"Question: {input_query}")
                 answer = run_single_prediction(
                     input_query,
-                    {"set_number": acis, "member_id": "q1e23", "session_id": session_id, "policy_number": "905531"},
+                  #  {"set_number": acis, "member_id": "q1e23", "session_id": session_id, "policy_number": "905531"},
                 )
                 Container.logger().info(msg=f"Answer: {answer}")
+                qna[input_query]=answer
             end = default_timer()
+            print(qna)
+            with open("optum_output.json","w") as f:
+                json.dump(qna,f)  
             print(f"Total flow took {end - start} seconds")
         else:
             raise ValueError("Not implemented mode")

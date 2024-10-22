@@ -412,11 +412,12 @@ if __name__ == "__main__":
         # Examples for the chatbot
         gr.Examples(
             [
-                ["What are Verizon's top operating expenses?"],
-                ["What industry does AMCOR primarily operate in?"],
-                ["Locate information on partnerships or collaborations announced by Paramount."],
-                ["What are the key trends impacting costs for davita?"],
-                ["Does Foot Locker's new CEO have previous CEO experience in a similar company to Footlocker?"]
+                ["What is a DUR reject?"],
+                ["Are there different kinds of DUR rejects?"],
+                ["Who can release a DUR-PPS hold?"],
+                ["What are the 3 parts of DUR/PPS codes?"],
+                ["What are the Professional Service codes and what does each mean?"],
+                ["What types of Prior Authorizations are there?"]
             ],
             inputs=prompt_box,
             outputs=chatbot,

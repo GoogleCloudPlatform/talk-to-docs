@@ -1,0 +1,13 @@
+{
+    "branch": "default_branch",
+    "bucket_name": "t2x-staging-mkamatala-genai-bb",
+    "collection": "default_collection",
+    "company_name": "OptumRx",
+    "data_store_id": "t2x-optumrx",
+    "dataset_name": "extractions20240926",
+    "engine_id": "t2x-optumrx-id",
+    "location": "us",
+    "metadata_filename": "metadata.jsonl",
+    "metadata_folder": "data-store-metadata",
+    "source_folder": "source-data"
+}
