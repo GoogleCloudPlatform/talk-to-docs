@@ -235,6 +235,7 @@ def create_metadata_jsonl(
     # Get all files in the GCE source folder.
     # The API returns an Iterator but it's type hinted as a list to aid intellisense.
     Container.logger().info(f"Processing Documents in: gs://{bucket_name}/{source_path}...")
+    source_path = f"{source_path}/" if source_path else ""
     all_files: list[storage.Blob] = bucket.list_blobs(prefix=source_path)
 
     # Process the list_pager of blobs using multithreading.
